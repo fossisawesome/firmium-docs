@@ -4,6 +4,16 @@
 
   let { open = false, onclose } = $props()
 
+  let query = $state('')
+
+  const filtered = $derived.by(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return pages
+    return pages.filter(page =>
+      page.label.toLowerCase().includes(q) || page.content.toLowerCase().includes(q)
+    )
+  })
+
   function go(path) {
     navigate(path)
     onclose?.()
@@ -15,8 +25,11 @@
     <span class="sidebar-logo">⬡</span>
     <span class="sidebar-title">Firmium</span>
   </div>
+  <div class="sidebar-search">
+    <input type="search" placeholder="Search docs..." bind:value={query} aria-label="Search docs" />
+  </div>
   <ul class="sidebar-nav">
-    {#each pages as page (page.path)}
+    {#each filtered as page (page.path)}
       <li>
         <a
           href={page.path}
@@ -27,6 +40,9 @@
         </a>
       </li>
     {/each}
+    {#if filtered.length === 0}
+      <li class="no-results">No matches</li>
+    {/if}
   </ul>
   <div class="sidebar-footer">
     <a href="https://github.com/fossisawesome/firmium" target="_blank" rel="noreferrer">GitHub</a>

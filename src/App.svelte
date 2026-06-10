@@ -1,6 +1,8 @@
 <script>
   import Sidebar from './lib/Sidebar.svelte'
   import Markdown from './lib/Markdown.svelte'
+  import TableOfContents from './lib/TableOfContents.svelte'
+  import PageNav from './lib/PageNav.svelte'
   import { currentPath } from './lib/router.js'
   import { findPage } from './lib/pages.js'
 
@@ -21,5 +23,8 @@
 
   <main class="content">
     <Markdown content={page.content} />
+    <PageNav path={page.path} />
   </main>
+
+  <TableOfContents content={page.content} />
 </div>
