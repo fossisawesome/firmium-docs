@@ -1,0 +1,17 @@
+{
+  "name": "firmium-docs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp dist/index.html dist/404.html",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "marked": "^16.4.0",
+    "svelte": "^5.55.5",
+    "vite": "^8.0.12"
+  }
+}
