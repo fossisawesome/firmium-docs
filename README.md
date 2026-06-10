@@ -1,5 +1,7 @@
 # firmium-docs
 
+[![Sponsor on GitHub](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors)](https://github.com/sponsors/fossisawesome)
+
 Docs for [Firmium](https://github.com/fossisawesome/firmium), built with Vite + Svelte and deployed to GitHub Pages.
 
 ## Development
