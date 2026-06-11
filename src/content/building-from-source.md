@@ -1,5 +1,7 @@
 # Building from Source
 
+This page covers building Firmium yourself from the source code, for both the Linux desktop app and the Android app. If you're new to the codebase and want to understand how everything fits together first, see the [Architecture Overview](/architecture-overview).
+
 ## Prerequisites
 
 - Rust 1.70 or later (`rustup default stable`)
