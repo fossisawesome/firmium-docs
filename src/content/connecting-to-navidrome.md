@@ -9,6 +9,11 @@ Firmium doesn't store any music itself. Instead, it connects to a music server y
 
 If you don't know these details, ask whoever set up your server, or check the server's own settings if you manage it yourself.
 
+> If you connect over plain `http://` to a server that isn't on your local
+> network (LAN/localhost), Firmium shows a warning that your credentials
+> would be sent unencrypted. Use `https://` for any server reachable over the
+> internet.
+
 ## Logging in
 
 1. Open Firmium.

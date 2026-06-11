@@ -8,9 +8,23 @@ import lyricsArtistBiosMd from '../content/lyrics-artist-bios.md?raw'
 import themesMd from '../content/custom-themes.md?raw'
 import settingsMd from '../content/settings.md?raw'
 import troubleshootingMd from '../content/troubleshooting.md?raw'
+import developerOverviewMd from '../content/developer-overview.md?raw'
 import architectureMd from '../content/architecture-overview.md?raw'
 import buildingMd from '../content/building-from-source.md?raw'
 import settingsThemesInternalsMd from '../content/settings-themes-internals.md?raw'
+import desktopIndepthOverviewMd from '../content/desktop-indepth-overview.md?raw'
+import desktopIndepthPlayerBarMd from '../content/desktop-indepth-player-bar.md?raw'
+import desktopIndepthSidebarNavMd from '../content/desktop-indepth-sidebar-nav.md?raw'
+import desktopIndepthLibraryViewsMd from '../content/desktop-indepth-library-views.md?raw'
+import desktopIndepthPlaylistsMd from '../content/desktop-indepth-playlists.md?raw'
+import desktopIndepthSettingsMd from '../content/desktop-indepth-settings.md?raw'
+import androidArchitectureMd from '../content/android-architecture.md?raw'
+import androidIndepthOverviewMd from '../content/android-indepth-overview.md?raw'
+import androidIndepthPlayerMd from '../content/android-indepth-player.md?raw'
+import androidIndepthLibraryNavMd from '../content/android-indepth-library-nav.md?raw'
+import androidIndepthQueueLyricsMd from '../content/android-indepth-queue-lyrics.md?raw'
+import androidIndepthPlaylistsMd from '../content/android-indepth-playlists.md?raw'
+import androidIndepthSettingsMd from '../content/android-indepth-settings.md?raw'
 
 export const categories = [
   {
@@ -51,14 +65,65 @@ export const categories = [
   {
     name: 'Developer',
     pages: [
-      { path: '/architecture-overview', label: 'Architecture Overview', content: architectureMd },
-      { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
-      { path: '/settings-themes-internals', label: 'Settings & Themes Internals', content: settingsThemesInternalsMd },
+      { path: '/developer-overview', label: 'Developer Overview', content: developerOverviewMd },
+    ],
+    subcategories: [
+      {
+        name: 'Desktop',
+        pages: [
+          { path: '/architecture-overview', label: 'Desktop Architecture', content: architectureMd },
+          { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
+          { path: '/settings-themes-internals', label: 'Settings & Themes Internals', content: settingsThemesInternalsMd },
+        ],
+        subcategories: [
+          {
+            name: 'In-depth',
+            pages: [
+              { path: '/desktop-indepth-overview', label: 'How it Works', content: desktopIndepthOverviewMd },
+              { path: '/desktop-indepth-player-bar', label: 'Player Bar', content: desktopIndepthPlayerBarMd },
+              { path: '/desktop-indepth-sidebar-nav', label: 'Sidebar & Navigation', content: desktopIndepthSidebarNavMd },
+              { path: '/desktop-indepth-library-views', label: 'Library Views', content: desktopIndepthLibraryViewsMd },
+              { path: '/desktop-indepth-playlists', label: 'Playlists', content: desktopIndepthPlaylistsMd },
+              { path: '/desktop-indepth-settings', label: 'Settings', content: desktopIndepthSettingsMd },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Android',
+        pages: [
+          { path: '/android-architecture', label: 'Android Architecture', content: androidArchitectureMd },
+          { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
+        ],
+        subcategories: [
+          {
+            name: 'In-depth',
+            pages: [
+              { path: '/android-indepth-overview', label: 'How it Works', content: androidIndepthOverviewMd },
+              { path: '/android-indepth-player', label: 'Player Bar & Full Screen Player', content: androidIndepthPlayerMd },
+              { path: '/android-indepth-library-nav', label: 'Library & Navigation', content: androidIndepthLibraryNavMd },
+              { path: '/android-indepth-queue-lyrics', label: 'Queue & Lyrics', content: androidIndepthQueueLyricsMd },
+              { path: '/android-indepth-playlists', label: 'Playlists', content: androidIndepthPlaylistsMd },
+              { path: '/android-indepth-settings', label: 'Settings', content: androidIndepthSettingsMd },
+            ],
+          },
+        ],
+      },
     ],
   },
 ]
 
-export const pages = categories.flatMap(c => c.pages)
+function collectPages(group) {
+  const own = group.pages ?? []
+  const nested = (group.subcategories ?? []).flatMap(collectPages)
+  return [...own, ...nested]
+}
+
+const allPagesWithDuplicates = categories.flatMap(collectPages)
+
+export const pages = allPagesWithDuplicates.filter(
+  (page, i) => allPagesWithDuplicates.findIndex(p => p.path === page.path) === i
+)
 
 export function findPage(path) {
   return pages.find(p => p.path === path) ?? pages[0]

@@ -4,25 +4,25 @@ This page documents how settings and themes are stored and wired up in code. For
 
 ## Settings storage
 
-Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fossisawesome/firmium/blob/main/src/views/Settings.svelte) and persisted to `localStorage` via `SafeStorage` (in [`src/lib/utils.js`](https://github.com/fossisawesome/firmium/blob/main/src/lib/utils.js)), under keys prefixed `firmium_*`. A few sensitive values (Last.fm credentials) are stored in the OS keyring via `Keyring` ([`src/lib/api.js`](https://github.com/fossisawesome/firmium/blob/main/src/lib/api.js)).
+Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fossisawesome/firmium/blob/main/src/views/Settings.svelte) and persisted to `localStorage` via `SafeStorage` (in [`src/lib/utils.ts`](https://github.com/fossisawesome/firmium/blob/main/src/lib/utils.ts)), under keys prefixed `firmium_*`. A few sensitive values (Last.fm credentials) are stored in the OS keyring via `Keyring` ([`src/lib/api.ts`](https://github.com/fossisawesome/firmium/blob/main/src/lib/api.ts)).
 
 | Setting | Storage key / location | Default | Notes |
 | --- | --- | --- | --- |
 | Window Decorations | `localStorage` `firmium_decorations` | shown | `Settings.svelte` calls `onapplyDecorations()`, which is `applyDecorations()` in `App.svelte`, calling Tauri's `getCurrentWindow().setDecorations(show)` |
 | Theme | `localStorage` `firmium_theme` | `"firmium"` | `Settings.svelte` calls `onapplyTheme()` -> `applyThemeById()` in `App.svelte`. Themes loaded via the `list_themes` Tauri command (`src-tauri/src/lib.rs`) |
-| Crossfade | `localStorage` `firmium_crossfade` | enabled | `setCrossfadeEnabled()` in `src/lib/stores.js` updates the `crossfadeEnabled` store, used by `crossfadeToNext()` in `src/lib/playback.js`. Mutually exclusive with Gapless |
+| Crossfade | `localStorage` `firmium_crossfade` | enabled | `setCrossfadeEnabled()` in `src/lib/stores.ts` updates the `crossfadeEnabled` store, used by `crossfadeToNext()` in `src/lib/playback.ts`. Mutually exclusive with Gapless |
 | Crossfade Duration | `localStorage` `firmium_crossfade_duration` | `5` (1-12) | `setCrossfadeDuration()` updates `crossfadeDuration`; passed to the Tauri `crossfade_to()` command as `fade_duration_ms = duration * 1000` |
-| Gapless Playback | `localStorage` `firmium_gapless` | enabled | `setGaplessEnabled()` updates `gaplessEnabled`. On track end, if gapless is enabled and crossfade isn't, `playback.js` calls `preload_stream()` then `play_stream()`. Mutually exclusive with Crossfade |
+| Gapless Playback | `localStorage` `firmium_gapless` | enabled | `setGaplessEnabled()` updates `gaplessEnabled`. On track end, if gapless is enabled and crossfade isn't, `playback.ts` calls `preload_stream()` then `play_stream()`. Mutually exclusive with Crossfade |
 | Last.fm Integration | `localStorage` `firmium_lastfm` | disabled | When enabled, reveals API Key/Secret fields |
-| Last.fm API Key / Secret | OS keyring, `lastfm_api_key` / `lastfm_secret` | - | Saved/loaded via `Keyring.save()` / `Keyring.load()` in `src/lib/api.js` |
-| External Lyrics (LRCLIB) | `localStorage` `firmium_lrclib` | enabled | Checked in `src/lib/lyrics.js` before falling back to the LRCLIB API |
+| Last.fm API Key / Secret | OS keyring, `lastfm_api_key` / `lastfm_secret` | - | Saved/loaded via `Keyring.save()` / `Keyring.load()` in `src/lib/api.ts` |
+| External Lyrics (LRCLIB) | `localStorage` `firmium_lrclib` | enabled | Checked in `src/lib/lyrics.ts` before falling back to the LRCLIB API |
 | Auto-Login | `localStorage` `firmium_auto_login` | enabled | Read on mount in `App.svelte`. If enabled and a password is saved (`firmium_save_pass`), loads the password from the keyring and calls `doConnect()` |
 
 ### Debug actions
 
 - **App Version**: calls the `get_app_version()` Tauri command (`src-tauri/src/lib.rs`), returning `env!("CARGO_PKG_VERSION")`
 - **Log File**: calls `get_log_path()`, returning `{app_data_dir}/app-logs.txt`
-- **Wipe Cache**: calls `clearAll()` from `src/lib/coverCache.js` (in-memory cover art cache only)
+- **Wipe Cache**: calls `clearAll()` from `src/lib/coverCache.ts` (in-memory cover art cache only)
 - **Delete Logs**: calls the `delete_logs()` Tauri command
 - **Delete User Settings**: loops over the `SETTINGS_KEYS` array and calls `SafeStorage.removeItem(k)` for each:
 

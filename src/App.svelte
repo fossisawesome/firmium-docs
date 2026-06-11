@@ -11,6 +11,8 @@
   const page = $derived(findPage($currentPath))
 </script>
 
+<a href="#main-content" class="skip-link">Skip to content</a>
+
 <div class="layout">
   <header class="topbar">
     <button class="menu-btn" aria-label="Toggle navigation" onclick={() => mobileNavOpen = !mobileNavOpen}>
@@ -21,7 +23,7 @@
 
   <Sidebar open={mobileNavOpen} onclose={() => mobileNavOpen = false} />
 
-  <main class="content">
+  <main class="content" id="main-content" tabindex="-1">
     <Markdown content={page.content} />
     <PageNav path={page.path} />
   </main>

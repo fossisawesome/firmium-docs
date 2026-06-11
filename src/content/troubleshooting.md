@@ -14,6 +14,11 @@ Credential storage is tied to the app's Android Keystore entry. A full uninstall
 **No audio through Bluetooth / certain output devices**
 ExoPlayer routes audio through the Android audio system. If a specific output device isn't working, check that it is selected as the active output in your system's audio settings.
 
+## Session expired
+
+**"Session expired — please reconnect"**
+If your server's session token becomes invalid (for example, the server restarted or your account's password changed), Firmium detects this and prompts you to reconnect. Re-enter your credentials on the login screen to continue.
+
 ## Linux
 
 **App launches but credentials aren't saved / login fails every restart**
