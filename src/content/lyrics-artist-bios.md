@@ -8,4 +8,4 @@ If your server doesn't have lyrics for a track, Firmium can look them up from [L
 
 ## Artist biographies
 
-Artist pages can show a short biography and photo. By default, this comes from Wikipedia. If you'd like richer results, you can connect your own Last.fm account in [Settings](/settings) to pull biographies and photos from there instead.
+Artist pages can show a short biography and photo, sourced from Last.fm. Connect your own Last.fm account in [Settings](/settings) for richer results.
