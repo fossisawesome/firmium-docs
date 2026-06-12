@@ -6,7 +6,8 @@ does.
 ## Player Bar (`ui/components/PlayerBar.kt`)
 
 - **Cover art / track info** — shows the current track's cover, title, and artist from
-  `PlayerState`.
+  `PlayerState`, plus a format line (e.g. `FLAC · 44.1 kHz · 16-bit · 1004 kbps`) when the
+  server provides this metadata.
 - **Play/Pause** — toggles playback.
 - **Next** — advances to the next track; disabled (greyed out) when `state.hasNext` is false.
 - **Tapping the bar** — opens the Full Screen Player.
@@ -15,6 +16,8 @@ does.
 
 - **Album art** — displayed with a background gradient extracted from the art via Android's
   Palette API, darkened to ~22% opacity. The art shrinks slightly when playback is paused.
+- **Track format** — shows the same format line as the player bar below the artist name,
+  when available.
 - **Tap album art** — opens the Lyrics sheet.
 - **Swipe left/right** — swiping the art left skips to the next track, swiping right goes to
   the previous track.

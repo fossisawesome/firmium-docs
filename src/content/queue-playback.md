@@ -14,3 +14,17 @@ Firmium offers two ways to transition between tracks. You can pick one in [Setti
 - **Gapless playback**: the next track is loaded ahead of time so it starts the instant the current one ends, with no fade and no silence in between. This is best for albums recorded as one continuous piece of music.
 
 If neither suits you, you can turn both off and tracks will simply play one after another with the player's normal behavior.
+
+## Track format info
+
+The player bar shows the format of the currently playing track, such as `FLAC · 96 kHz · 24-bit · 1411 kbps`, when this information is available from your server.
+
+## Bit-perfect audio (desktop, Linux/Windows)
+
+On desktop, Firmium can reopen the audio output device to match each track's native sample rate, avoiding the resampling that audio servers like PipeWire otherwise apply. When this is active, the player bar shows "Bit-perfect" alongside the track's format info.
+
+This is controlled by the "Bit-perfect Audio" toggle in [Settings](/settings), and is on by default. A few things to know:
+
+- If a crossfade is in progress when a track with a different sample rate starts, the rate change is deferred until the crossfade finishes, so the transition stays smooth. The output device switches to the new rate for the track after that.
+- If your audio device doesn't support a track's exact sample rate, Firmium falls back to the nearest supported rate, same as before.
+- Switching sample rates can cause a brief click or pop on some audio setups. If this bothers you, turn the toggle off to keep the output at a fixed rate.

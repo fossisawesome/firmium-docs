@@ -22,6 +22,10 @@ Smoothly blends the end of one track into the start of the next. You can set how
 
 Removes any pause between tracks by preparing the next track ahead of time. Turning this on turns off Crossfade. See [Queue & Playback](/queue-playback).
 
+### Bit-perfect Audio
+
+On by default. Reopens the audio output device at each track's native sample rate when possible, so the file plays without being resampled. May cause a brief click when the sample rate changes between tracks. See [Queue & Playback](/queue-playback).
+
 ## Services
 
 ### Last.fm Integration
@@ -44,9 +48,7 @@ These options are mainly useful for troubleshooting or reporting bugs:
 
 - **App Version**: shows the version of Firmium you're running.
 - **Software Update**: checks for a newer release and installs it in place. See [Updating Firmium](#updating-firmium) below.
-- **Log File**: shows where Firmium's log file is saved.
 - **Wipe Cache**: clears cached cover art. Doesn't affect your server or saved settings.
-- **Delete Logs**: removes the saved log file from disk.
 - **Delete User Settings**: resets all preferences back to their defaults, including your saved login.
 
 ## Updating Firmium

@@ -14,6 +14,9 @@ and wired up internally, see [Settings & Themes Internals](/settings-themes-inte
     Gapless.
   - **Gapless** — toggle for gapless playback between tracks. Mutually exclusive with
     Crossfade.
+  - **Bit-perfect Audio** — toggle, on by default. Reopens the audio output device at each
+    track's native sample rate when possible, avoiding forced resampling (e.g. by PipeWire).
+    May cause a brief click when the sample rate changes between tracks.
 - **Services**
   - **Last.fm Integration** — toggle, plus fields for an API Key and Secret, stored in the OS
     keyring.
@@ -24,9 +27,9 @@ and wired up internally, see [Settings & Themes Internals](/settings-themes-inte
   - **Logout** — signs out and returns to the login screen (same as Sidebar's Disconnect).
 - **Debug**
   - **App Version** — displays the current version.
-  - **Log File** — opens/reveals the app's log file.
+  - **Software Update** — checks for and installs a newer version (Windows/Linux AppImage
+    builds).
   - **Wipe Cache** — clears cached covers and list data.
-  - **Delete Logs** — deletes the log file.
   - **Delete User Settings** — clears all `firmium_*` keys from localStorage, resetting the
     app to defaults.
 

@@ -23,7 +23,7 @@ category list that drills down into per-category panels, mirroring the desktop a
 - **About**
   - **App Version** — displays the current version.
   - **Wipe Cache** — clears cached covers and list data.
-  - **Delete Logs** — deletes the app's log file.
+  - **Clear Cache** — removes all cached app data from disk.
   - **Reset Settings** — resets all settings to defaults.
 
 Settings are stored via `AppPreferences` and `SecureStorage`, the Android equivalents of the
