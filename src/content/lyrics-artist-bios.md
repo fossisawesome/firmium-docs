@@ -9,3 +9,8 @@ If your server doesn't have lyrics for a track, Firmium can look them up from [L
 ## Artist biographies
 
 Artist pages can show a short biography and photo, sourced from Last.fm. Connect your own Last.fm account in [Settings](/settings) for richer results.
+
+## Implementation
+
+For the lyrics lookup order (server -> legacy -> LRCLIB), LRC parsing, and query
+normalization, see [Desktop Backend Internals](/desktop-backend-internals#lyrics-cascade-commandslyricsrs-commandssubsonicrs).

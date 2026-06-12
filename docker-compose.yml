@@ -1,0 +1,6 @@
+services:
+  firmium-docs:
+    image: ghcr.io/fossisawesome/firmium-docs:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped

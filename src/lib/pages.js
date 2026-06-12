@@ -12,6 +12,7 @@ import developerOverviewMd from '../content/developer-overview.md?raw'
 import architectureMd from '../content/architecture-overview.md?raw'
 import buildingMd from '../content/building-from-source.md?raw'
 import settingsThemesInternalsMd from '../content/settings-themes-internals.md?raw'
+import desktopBackendInternalsMd from '../content/desktop-backend-internals.md?raw'
 import desktopIndepthOverviewMd from '../content/desktop-indepth-overview.md?raw'
 import desktopIndepthPlayerBarMd from '../content/desktop-indepth-player-bar.md?raw'
 import desktopIndepthSidebarNavMd from '../content/desktop-indepth-sidebar-nav.md?raw'
@@ -19,6 +20,7 @@ import desktopIndepthLibraryViewsMd from '../content/desktop-indepth-library-vie
 import desktopIndepthPlaylistsMd from '../content/desktop-indepth-playlists.md?raw'
 import desktopIndepthSettingsMd from '../content/desktop-indepth-settings.md?raw'
 import androidArchitectureMd from '../content/android-architecture.md?raw'
+import androidInternalsMd from '../content/android-internals.md?raw'
 import androidIndepthOverviewMd from '../content/android-indepth-overview.md?raw'
 import androidIndepthPlayerMd from '../content/android-indepth-player.md?raw'
 import androidIndepthLibraryNavMd from '../content/android-indepth-library-nav.md?raw'
@@ -74,6 +76,7 @@ export const categories = [
           { path: '/architecture-overview', label: 'Desktop Architecture', content: architectureMd },
           { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
           { path: '/settings-themes-internals', label: 'Settings & Themes Internals', content: settingsThemesInternalsMd },
+          { path: '/desktop-backend-internals', label: 'Backend Internals', content: desktopBackendInternalsMd },
         ],
         subcategories: [
           {
@@ -93,6 +96,7 @@ export const categories = [
         name: 'Android',
         pages: [
           { path: '/android-architecture', label: 'Android Architecture', content: androidArchitectureMd },
+          { path: '/android-internals', label: 'Android Internals', content: androidInternalsMd },
           { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
         ],
         subcategories: [

@@ -11,21 +11,27 @@ src/                  Svelte frontend (the UI)
   views/              One file per screen (AlbumList, ArtistDetail, Settings, ...)
   components/         Shared UI pieces (PlayerBar, Sidebar, LyricsPanel, PlaylistMenu, ...)
   lib/
-    api.ts            Talks to your Navidrome/OpenSubsonic server
+    api.ts            Thin invoke() wrappers around the Rust OpenSubsonic client
     stores.ts         Shared app state (current theme, queue, playback settings, ...)
     playback.ts       Decides what to play next, handles crossfade/gapless logic
-    coverCache.ts      Caches album art in memory
+    coverCache.ts      Thin wrapper around the Rust disk-based cover art cache
   App.svelte          Top-level layout, routing, theme application
 
 src-tauri/            Rust backend (runs natively, not in the browser)
   src/lib.rs          App entry point; registers Tauri commands defined in commands/
-  src/commands/       Command modules: auth, credentials, themes, playback, logging, mappers
+  src/state.rs        AppState: connection info (server/user/pass) + shared async HTTP client
+  src/commands/       Command modules: auth, credentials, themes, playback, mappers,
+                      subsonic (OpenSubsonic API), lyrics, cover_cache
   src/audio.rs        Actual audio playback, using the `rodio` audio library
 
 themes/               Built-in color theme files (.toml)
 ```
 
-**How a screen works**: each view in `src/views/` is a Svelte component that calls functions in `src/lib/api.ts` to fetch data from your server (albums, artists, playlists, etc.) and renders it. Shared state, like what's currently playing or which theme is active, lives in `src/lib/stores.ts` so multiple views can read and update it. Long lists (albums, artists, playlist tracks) are rendered through `src/lib/VirtualList.svelte`, which only mounts the rows currently visible on screen.
+**How a screen works**: each view in `src/views/` is a Svelte component that calls functions in `src/lib/api.ts` - thin wrappers around Tauri commands in `src-tauri/src/commands/subsonic.rs` - to fetch data from your server (albums, artists, playlists, etc.) and renders it. The Rust side holds the active connection (server URL, username, password) in `AppState`, builds authenticated OpenSubsonic requests, and maps JSON responses to typed structs via `commands/mappers.rs`. Shared state, like what's currently playing or which theme is active, lives in `src/lib/stores.ts` so multiple views can read and update it; `setAuth`/`clearAuth` there call `set_connection` to keep the Rust side in sync. Long lists (albums, artists, playlist tracks) are rendered through `src/lib/VirtualList.svelte`, which only mounts the rows currently visible on screen.
+
+**Cover art and lyrics**: cover art is cached to disk under the app's cache directory (`get_cover_art` in `commands/cover_cache.rs`, 200MB budget with LRU eviction) and served to the UI via Tauri's asset protocol, so covers persist across restarts without re-downloading. Lyrics go through a cascade in `commands/subsonic.rs::get_song_lyrics`: OpenSubsonic structured lyrics, then legacy plain-text lyrics, then (if enabled) an LRCLIB lookup.
+
+**Session expiry**: if the server returns HTTP 401 or an OpenSubsonic error code 40/41, the Rust side emits a `firmium:session-expired` event, which `App.svelte` listens for to clear credentials and prompt the user to reconnect.
 
 **How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio.rs` (via Tauri commands defined in `src-tauri/src/commands/playback.rs`), which streams the audio file from your server and plays it through `rodio`. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
 
