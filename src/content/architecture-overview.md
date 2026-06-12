@@ -18,17 +18,20 @@ src/                  Svelte frontend (the UI)
   App.svelte          Top-level layout, routing, theme application
 
 src-tauri/            Rust backend (runs natively, not in the browser)
-  src/lib.rs          Tauri "commands" the frontend can call (list_themes, get_app_version, ...)
+  src/lib.rs          App entry point; registers Tauri commands defined in commands/
+  src/commands/       Command modules: auth, credentials, themes, playback, logging, mappers
   src/audio.rs        Actual audio playback, using the `rodio` audio library
 
 themes/               Built-in color theme files (.toml)
 ```
 
-**How a screen works**: each view in `src/views/` is a Svelte component that calls functions in `src/lib/api.ts` to fetch data from your server (albums, artists, playlists, etc.) and renders it. Shared state, like what's currently playing or which theme is active, lives in `src/lib/stores.ts` so multiple views can read and update it.
+**How a screen works**: each view in `src/views/` is a Svelte component that calls functions in `src/lib/api.ts` to fetch data from your server (albums, artists, playlists, etc.) and renders it. Shared state, like what's currently playing or which theme is active, lives in `src/lib/stores.ts` so multiple views can read and update it. Long lists (albums, artists, playlist tracks) are rendered through `src/lib/VirtualList.svelte`, which only mounts the rows currently visible on screen.
 
-**How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio.rs` (via Tauri commands defined in `src-tauri/src/lib.rs`), which streams the audio file from your server and plays it through `rodio`. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
+**How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio.rs` (via Tauri commands defined in `src-tauri/src/commands/playback.rs`), which streams the audio file from your server and plays it through `rodio`. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
 
-**How themes work**: theme files are TOML files, either bundled in `themes/` or placed by the user in their config directory. The Rust side (`list_themes` in `lib.rs`) finds and merges both sets, and the frontend applies the chosen theme's colors as CSS variables. See [Settings & Themes Internals](/settings-themes-internals) for the full mechanism.
+**How themes work**: theme files are TOML files, either bundled in `themes/` or placed by the user in their config directory. The Rust side (`list_themes` in `src-tauri/src/commands/themes.rs`) finds and merges both sets, and the frontend applies the chosen theme's colors as CSS variables. See [Settings & Themes Internals](/settings-themes-internals) for the full mechanism.
+
+**Updates**: on Windows and Linux AppImage builds, `src/lib/updater.ts` checks for new releases and can install them in place (Settings > Debug > Software Update). `.deb`/`.rpm`/COPR users update via their package manager.
 
 ## Going further
 

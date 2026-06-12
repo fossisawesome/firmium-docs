@@ -43,9 +43,19 @@ When enabled, Firmium signs you in automatically the next time you open the app,
 These options are mainly useful for troubleshooting or reporting bugs:
 
 - **App Version**: shows the version of Firmium you're running.
+- **Software Update**: checks for a newer release and installs it in place. See [Updating Firmium](#updating-firmium) below.
 - **Log File**: shows where Firmium's log file is saved.
 - **Wipe Cache**: clears cached cover art. Doesn't affect your server or saved settings.
 - **Delete Logs**: removes the saved log file from disk.
 - **Delete User Settings**: resets all preferences back to their defaults, including your saved login.
+
+## Updating Firmium
+
+How you get updates depends on your platform:
+
+- **Windows**: use the Software Update button under Settings > Debug. Firmium checks the latest GitHub release, and if a newer version is available, downloads and installs it, then restarts.
+- **Linux (AppImage)**: same in-app update flow as Windows.
+- **Linux (.deb / .rpm / COPR)**: update through your package manager (`apt`, `dnf`, etc.) or COPR repo, like any other system package. The in-app update button isn't available for these builds, since package managers handle their own installs.
+- **Android**: update through the Play Store, or by installing a new APK manually.
 
 For where each setting is stored and how it's wired up in the code, see [Settings & Themes Internals](/settings-themes-internals).

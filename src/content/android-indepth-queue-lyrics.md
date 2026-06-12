@@ -12,6 +12,11 @@ What each control in `ui/components/QueueSheet.kt` and `ui/components/LyricsShee
 
 ## Lyrics (`ui/components/LyricsSheet.kt`)
 
+Lyrics fetching, caching, and playback-position sync are handled by
+`viewmodel/LyricsController.kt`, mirroring the `syncLyricsToPosition` logic
+used by the desktop app. It cancels in-flight fetches when the track changes
+so a slow response for a previous track can't overwrite the current one.
+
 - Shows a loading spinner while lyrics are being fetched.
 - Shows a "No lyrics available" message if none are found.
 - For synced lyrics, the currently playing line is highlighted and the view auto-scrolls to
