@@ -1,6 +1,7 @@
 # Android In-depth: Queue & Lyrics
 
-What each control in `ui/components/QueueSheet.kt` and `ui/components/LyricsSheet.kt` does.
+What each control in `ui/components/QueueSheet.kt`, `ui/components/LyricsSheet.kt`, and
+`ui/components/SimilarTracksSheet.kt` does.
 
 ## Queue (`ui/components/QueueSheet.kt`)
 
@@ -22,6 +23,21 @@ so a slow response for a previous track can't overwrite the current one.
 - For synced lyrics, the currently playing line is highlighted and the view auto-scrolls to
   follow playback.
 - For unsynced lyrics, the full text is shown without line-by-line highlighting.
+
+## Similar Tracks (`ui/components/SimilarTracksSheet.kt`)
+
+Only available when the server advertises the `sonicSimilarity` OpenSubsonic extension
+(`ApiClient.hasExtension("sonicSimilarity")`).
+
+- `PlayerViewModel.fetchSimilarTracks()` calls `ApiClient.getSonicSimilarTracks(songId)`
+  for the current track and exposes the result via `similarTracksState`
+  (`SimilarTracksState`: `isLoading`, `matches`, `error`).
+- Each row shows the matched track's title, artist, and similarity percentage
+  (`ApiClient.SimilarMatch.similarity`, 0.0-1.0).
+- Tapping a row calls `onPlayAt(songs, index)`, which plays the full similar-tracks list
+  starting at that track via `PlayerViewModel.playAt()`.
+- Shows a loading spinner while fetching, and "No similar tracks found" on error or empty
+  results.
 
 ## See also
 

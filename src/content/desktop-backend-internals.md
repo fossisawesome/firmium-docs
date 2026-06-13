@@ -78,6 +78,33 @@ synced }` is the shape returned to the frontend; `synced: true` only when timest
 lines were found, which drives whether `LyricsPanel.svelte` shows karaoke-style
 highlighting.
 
+## OpenSubsonic extension detection and playback reporting (`commands/subsonic.rs`)
+
+Every Subsonic response includes an `openSubsonicExtensions` array naming the extensions
+the server supports. `subsonic_request()` captures this array into
+`AppState.connection.open_subsonic_extensions` on every call. The frontend fetches the
+current list once after login via
+[`get_open_subsonic_extensions()`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
+and stores it in `openSubsonicExtensions` (`src/lib/stores.ts`), which drives derived
+stores like `hasSonicSimilarity`. `has_extension(state, name)` is the Rust-side helper
+used by the commands below to check whether a given extension is advertised.
+
+- [`report_playback(media_id, position_ms, playback_state)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
+  implements the `playbackReport` extension's `reportPlayback` endpoint. It's a no-op
+  (and never makes a request) unless the server advertises `playbackReport`. Fire-and-forget
+  via `tokio::spawn`, same pattern as `scrobble`. Called from `src/lib/playback.ts` (track
+  start/finish) and `src/lib/playerControls.ts` (pause/resume) with `state` one of
+  `starting`/`playing`/`paused`/`stopped`.
+- [`get_sonic_similar_tracks(id, count)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
+  and `find_sonic_path(start_song_id, end_song_id, count)` implement the `sonicSimilarity`
+  extension's `getSonicSimilarTracks`/`findSonicPath` endpoints. Both return
+  `Err("sonicSimilarity not supported")` if the extension isn't advertised, so the
+  frontend can hide the UI. The raw response's `sonicMatch` array (`{entry, similarity}`)
+  is mapped via `map_similar_matches()` in `commands/mappers.rs` into `SimilarMatch { song,
+  similarity }`. Only `get_sonic_similar_tracks` has a UI consumer
+  (`SimilarTracksPanel.svelte`, opened from `PlayerBar.svelte`); `find_sonic_path` is
+  registered but currently unused.
+
 ## Subsonic data mappers (`commands/mappers.rs`)
 
 `map_albums()`, `map_artists()`, `map_songs()` convert raw Subsonic JSON

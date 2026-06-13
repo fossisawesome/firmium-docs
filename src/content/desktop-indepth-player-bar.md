@@ -26,6 +26,10 @@ playback, see [How it Works](/desktop-indepth-overview).
   badge on the icon indicates the current mode.
 - **Lyrics** — toggles the `lyricsOpen` store and calls `fetchAndShowLyrics()` to load synced
   or unsynced lyrics for the current track from LRCLIB (if enabled in Settings).
+- **Similar Tracks** — only shown when `hasSonicSimilarity` is true (the server advertises
+  the `sonicSimilarity` OpenSubsonic extension). Toggles the `similarTracksOpen` store and
+  calls `Api.getSonicSimilarTracks()` to populate `SimilarTracksPanel.svelte` with
+  audio-similar tracks for the current track (see [Queue & Playback](/queue-playback)).
 
 ## See also
 

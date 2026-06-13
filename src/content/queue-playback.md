@@ -19,6 +19,15 @@ If neither suits you, you can turn both off and tracks will simply play one afte
 
 The player bar shows the format of the currently playing track, such as `FLAC · 96 kHz · 24-bit · 1411 kbps`, when this information is available from your server.
 
+## Similar Tracks
+
+If your server supports the OpenSubsonic `sonicSimilarity` extension (for example, Navidrome with a sonic-similarity plugin configured), Firmium can show a list of audio-similar tracks for whatever is currently playing, each with a similarity percentage. Tapping a track plays the similar-tracks list starting from that song.
+
+- **Desktop**: click the similar-tracks button in the player bar to open the panel.
+- **Android**: open the full-screen player and tap the similar-tracks button among the secondary controls.
+
+This feature only appears if your server advertises the extension; otherwise the button is hidden.
+
 ## Bit-perfect audio (desktop, Linux/Windows)
 
 On desktop, Firmium can reopen the audio output device to match each track's native sample rate, avoiding the resampling that audio servers like PipeWire otherwise apply. When this is active, the player bar shows "Bit-perfect" alongside the track's format info.
