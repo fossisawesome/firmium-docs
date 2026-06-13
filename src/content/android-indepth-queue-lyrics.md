@@ -26,11 +26,14 @@ so a slow response for a previous track can't overwrite the current one.
 
 ## Similar Tracks (`ui/components/SimilarTracksSheet.kt`)
 
-Only available when the server advertises the `sonicSimilarity` OpenSubsonic extension
-(`ApiClient.hasExtension("sonicSimilarity")`).
+Always available. `PlayerViewModel.fetchSimilarTracks()` calls
+`ApiClient.getSonicSimilarTracks(songId)` if the server advertises the `sonicSimilarity`
+OpenSubsonic extension (`ApiClient.hasExtension("sonicSimilarity")`), otherwise falls back
+to `ApiClient.getSimilarTracksFallback(songId, artistId, genre)`, which matches tracks by
+genre (`getSongsByGenre`, similarity 0.55) and by similar artists from the server's
+Last.fm-backed `getArtistInfo2`/`getTopSongs` (similarity 0.45).
 
-- `PlayerViewModel.fetchSimilarTracks()` calls `ApiClient.getSonicSimilarTracks(songId)`
-  for the current track and exposes the result via `similarTracksState`
+- The result is exposed via `similarTracksState`
   (`SimilarTracksState`: `isLoading`, `matches`, `error`).
 - Each row shows the matched track's title, artist, and similarity percentage
   (`ApiClient.SimilarMatch.similarity`, 0.0-1.0).

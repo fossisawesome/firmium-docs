@@ -99,11 +99,22 @@ used by the commands below to check whether a given extension is advertised.
   and `find_sonic_path(start_song_id, end_song_id, count)` implement the `sonicSimilarity`
   extension's `getSonicSimilarTracks`/`findSonicPath` endpoints. Both return
   `Err("sonicSimilarity not supported")` if the extension isn't advertised, so the
-  frontend can hide the UI. The raw response's `sonicMatch` array (`{entry, similarity}`)
-  is mapped via `map_similar_matches()` in `commands/mappers.rs` into `SimilarMatch { song,
-  similarity }`. Only `get_sonic_similar_tracks` has a UI consumer
-  (`SimilarTracksPanel.svelte`, opened from `PlayerBar.svelte`); `find_sonic_path` is
-  registered but currently unused.
+  frontend can fall back to `get_similar_tracks_fallback`. The raw response's `sonicMatch`
+  array (`{entry, similarity}`) is mapped via `map_similar_matches()` in
+  `commands/mappers.rs` into `SimilarMatch { song, similarity }`. Only
+  `get_sonic_similar_tracks` has a UI consumer (`SimilarTracksPanel.svelte`, opened from
+  `PlayerBar.svelte`); `find_sonic_path` is registered but currently unused.
+- [`get_similar_tracks_fallback(song_id, artist_id, genre, count)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
+  is used by `PlayerBar.svelte` when `hasSonicSimilarity` is false. It combines two
+  sources, each tagged with a synthetic `similarity` so the existing UI works unchanged:
+  genre matches via `getSongsByGenre` (similarity `0.55`), and similar-artist matches via
+  `getArtistInfo2`'s `similarArtist[]` (Last.fm-backed, server-side) followed by
+  `getTopSongs` per similar artist (similarity `0.45`). Results are deduplicated by song
+  ID (via `Song::id()`, also excluding the current track), shuffled, and truncated to
+  `count` (default 10). Returns `Ok(vec![])` if nothing is found rather than an error.
+  Requires the new `Song.artistId` field (`mappers.rs`, populated from `artistId` in
+  `map_song()`), which is also exposed to the frontend (`Song.artistId?` in
+  `tauri-commands.ts`) so `PlayerBar.svelte` can pass the current track's artist ID.
 
 ## Subsonic data mappers (`commands/mappers.rs`)
 

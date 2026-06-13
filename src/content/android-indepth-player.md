@@ -28,9 +28,8 @@ does.
 - **Repeat** — cycles Off → Repeat All → Repeat One, showing a "1" badge in Repeat One mode.
 - **Add to playlist** — opens `AddToPlaylistDialog.kt` (see [Playlists](/android-indepth-playlists)).
 - **Queue** — opens the Queue sheet (see [Queue & Lyrics](/android-indepth-queue-lyrics)).
-- **Similar Tracks** — only shown when the server advertises the `sonicSimilarity`
-  OpenSubsonic extension; opens `SimilarTracksSheet.kt` with audio-similar tracks for the
-  current song (see [Queue & Lyrics](/android-indepth-queue-lyrics)).
+- **Similar Tracks** — always shown; opens `SimilarTracksSheet.kt` with similar tracks for
+  the current song (see [Queue & Lyrics](/android-indepth-queue-lyrics)).
 - **Volume slider** — adjusts playback volume.
 
 In landscape orientation, the layout switches to place the album art beside the controls

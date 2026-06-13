@@ -21,7 +21,9 @@ The player bar shows the format of the currently playing track, such as `FLAC ·
 
 ## Similar Tracks
 
-If your server supports the OpenSubsonic `sonicSimilarity` extension (for example, Navidrome with a sonic-similarity plugin configured), Firmium can show a list of audio-similar tracks for whatever is currently playing, each with a similarity percentage. Tapping a track plays the similar-tracks list starting from that song.
+Firmium can always show a list of similar tracks for whatever is currently playing, each with a similarity percentage. Tapping a track plays the similar-tracks list starting from that song.
+
+If your server supports the OpenSubsonic `sonicSimilarity` extension (for example, Navidrome with a sonic-similarity plugin configured), these are true audio-similarity matches. Otherwise, Firmium falls back to suggesting tracks that share a genre with the current track, plus tracks from artists similar to the current artist (using your server's Last.fm-backed artist info).
 
 - **Desktop**: click the similar-tracks button in the player bar to open the panel.
 - **Android**: open the full-screen player and tap the similar-tracks button among the secondary controls.
