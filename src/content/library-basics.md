@@ -1,6 +1,21 @@
 # Library Basics
 
-Once you're logged in, the sidebar (or bottom navigation on Android) is your main way of getting around Firmium.
+The sidebar (or bottom navigation on Android) is your main way of getting around Firmium.
+
+## Local library vs. server library
+
+If you're not connected to a server, these views show your **local library**: music
+files in your `Music/Firmium` folder (`~/Music/Firmium` on desktop). Once you connect to
+a server (see [Connecting to Navidrome](/connecting-to-navidrome)), the same views switch
+to your server's library automatically.
+
+You can add music to your local library by:
+
+- **Downloading** tracks, albums, singles, EPs, or playlist tracks from your server -
+  look for the download icon next to the add-to-playlist button. Choose the download
+  format (Original, MP3, FLAC, WAV, or Opus) in [Settings](/settings).
+- **Dragging and dropping** audio files or folders onto the Firmium window (desktop
+  only) - they're copied straight into your local library.
 
 ## Home
 

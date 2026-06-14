@@ -1,6 +1,6 @@
 # Settings
 
-The Settings view is split into a few groups: Appearance, Playback, Services, Account, and Debug.
+The Settings view is split into a few groups: Appearance, Playback, Downloads, Services, Account, and Debug.
 
 ## Appearance
 
@@ -24,7 +24,22 @@ Removes any pause between tracks by preparing the next track ahead of time. Turn
 
 ### Bit-perfect Audio
 
-On by default. Reopens the audio output device at each track's native sample rate when possible, so the file plays without being resampled. May cause a brief click when the sample rate changes between tracks. See [Queue & Playback](/queue-playback).
+On by default. Reopens the audio output device at each track's native sample rate when possible, so the file plays without being resampled. May cause a brief click when the sample rate changes between tracks. On Linux with PipeWire, the system's audio server may still resample to its own fixed rate downstream — see [Troubleshooting](/troubleshooting) if the output rate doesn't seem to change.
+
+## Downloads
+
+### Download Format
+
+Sets the file format used when you download a track, album, single, EP, or playlist
+track to your local library (see [Library Basics](/library-basics)). Choices are
+**Original** (the file exactly as stored on your server, no conversion), **MP3**,
+**FLAC**, **WAV**, or **Opus**. Defaults to Original. If your server can't produce the
+chosen format, the download fails with an error instead of saving a broken file.
+
+Downloaded files are saved under `~/Music/Firmium/<Album Artist>/<Album>/` (the same
+folder used for local-library imports). On Windows this is
+`%USERPROFILE%\Music\Firmium\...`. Tracks already present in this folder show as
+downloaded in the track list, even after restarting the app.
 
 ## Services
 
@@ -37,6 +52,9 @@ Use your own [Last.fm](https://www.last.fm/) account to fetch artist photos and 
 When your server doesn't have lyrics for a song, Firmium can look them up from [LRCLIB](https://lrclib.net/), a free community lyrics database. On by default.
 
 ## Account
+
+Shows your connection status, with a **Connect** or **Disconnect** button (same action
+as the account icon - see [Connecting to Navidrome](/connecting-to-navidrome)).
 
 ### Auto-Login
 

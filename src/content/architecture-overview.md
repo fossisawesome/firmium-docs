@@ -21,7 +21,8 @@ src-tauri/            Rust backend (runs natively, not in the browser)
   src/lib.rs          App entry point; registers Tauri commands defined in commands/
   src/state.rs        AppState: connection info (server/user/pass) + shared async HTTP client
   src/commands/       Command modules: auth, credentials, themes, playback, mappers,
-                      subsonic (OpenSubsonic API), lyrics, cover_cache
+                      subsonic (OpenSubsonic API), lyrics, cover_cache, local_library,
+                      downloads
   src/audio.rs        Actual audio playback, using the `rodio` audio library
 
 themes/               Built-in color theme files (.toml)
@@ -31,7 +32,9 @@ themes/               Built-in color theme files (.toml)
 
 **Cover art and lyrics**: cover art is cached to disk under the app's cache directory (`get_cover_art` in `commands/cover_cache.rs`, 200MB budget with LRU eviction) and served to the UI via Tauri's asset protocol, so covers persist across restarts without re-downloading. Lyrics go through a cascade in `commands/subsonic.rs::get_song_lyrics`: OpenSubsonic structured lyrics, then legacy plain-text lyrics, then (if enabled) an LRCLIB lookup.
 
-**Session expiry**: if the server returns HTTP 401 or an OpenSubsonic error code 40/41, the Rust side emits a `firmium:session-expired` event, which `App.svelte` listens for to clear credentials and prompt the user to reconnect.
+**Session expiry**: if the server returns HTTP 401 or an OpenSubsonic error code 40/41, the Rust side emits a `firmium:session-expired` event, which `App.svelte` listens for to clear credentials; the app falls back to the local library rather than showing a blocking error.
+
+**Local library and downloads**: `src-tauri/src/commands/local_library.rs` scans `~/Music/Firmium` and maps the files it finds into the same `Album`/`Artist`/`Song` shapes used by the OpenSubsonic API, so the existing views work whether or not you're connected to a server. `src/lib/dataSource.ts` picks between `Api` (server) and `LocalApi` (local library) based on the `isAuthed` store; views read through `$dataSource` and re-fetch when it changes or when `dataSourceVersion` (`src/lib/stores.ts`) is bumped. `src-tauri/src/commands/downloads.rs` downloads tracks/albums from the server into the same `~/Music/Firmium` folder (honoring the Download Format setting), and dropping audio files/folders onto the window (`App.svelte`'s `onDragDropEvent` handler) copies them in via `import_local_files` - both invalidate `local_library.rs`'s scan cache so the local library view picks up the new files.
 
 **How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio.rs` (via Tauri commands defined in `src-tauri/src/commands/playback.rs`), which streams the audio file from your server and plays it through `rodio`. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
 

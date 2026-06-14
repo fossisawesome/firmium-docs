@@ -12,14 +12,20 @@ category list that drills down into per-category panels, mirroring the desktop a
 - **Playback**
   - **Crossfade** — toggle plus a duration slider when enabled.
   - **Gapless** — toggle for gapless playback.
+- **Downloads**
+  - **Download Format** — dropdown (Original/MP3/FLAC/WAV/Opus) for track, album, and
+    playlist downloads. See [Settings](/settings#downloads).
 - **Services**
   - **External Lyrics (LRCLIB)** — toggle to fetch lyrics from LRCLIB when the server doesn't
     provide them.
   - **Last.fm Integration** — toggle, plus API Key/Secret fields with a show/hide control.
 - **Account**
-  - Displays the connected server URL and username.
+  - Displays the connected server URL and username, or "Not connected" when browsing
+    the local library.
   - **Auto-Login** — toggle for automatically reconnecting on launch.
-  - **Disconnect server** — signs out and returns to the login screen.
+  - **Disconnect server** — signs out and falls back to the local library. The same
+    connect/disconnect actions are also available from the account icon in the top app
+    bar - see [Connecting to Navidrome](/connecting-to-navidrome).
 - **About**
   - **App Version** — displays the current version.
   - **Wipe Cache** — clears cached covers and list data.

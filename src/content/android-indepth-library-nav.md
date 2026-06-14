@@ -33,11 +33,27 @@ ViewModel state pattern and the full route table, see [Android Internals](/andro
   for the full route table and `onNavigate` back-stack logic.
 - `coverUrlFor` is a shared `(String?) -> String?` closure (`auth.coverArtUrl(id, 300)`)
   passed to every screen that renders cover art.
+- `FirmiumPageHeader` (top app bar on phones) and `FirmiumNavRail` (tablets) include an
+  account icon alongside search/settings, opening `AccountDialog` - the Android
+  equivalent of the desktop sidebar's account icon (see
+  [Desktop In-depth: Sidebar & Navigation](/desktop-indepth-sidebar-nav)).
+
+## Local library
+
+When `AuthManager.isAuthenticated` is false, the same screens render the **local
+library** instead: music files under `Music/Firmium` on device storage, scanned by
+`LocalLibraryRepository` (`data/local/`) via a MediaStore query (with a direct file-listing
+fallback on API <29) and mapped into the same `Album`/`Artist`/`Song` model classes used
+by `ApiClient`. `AppNavGraph.kt` picks between `ApiClient` and `LocalLibraryRepository`
+based on auth state, and `coverUrlFor` branches on a `"local:"` id prefix to load
+embedded cover art (via `MediaMetadataRetriever`) instead of a server cover URL. See
+[Desktop In-depth: Library Views](/desktop-indepth-library-views) for the desktop
+equivalent (`local_library.rs` + `LocalApi`).
 
 ## Cross-platform note
 
 These screens' data-loading pattern (idempotent `load*()` + `StateFlow` state) has no
-direct desktop equivalent - the desktop app fetches via `Api` calls directly inside
+direct desktop equivalent - the desktop app fetches via `$dataSource` calls directly inside
 Svelte components/views. See [Desktop In-depth: Library Views](/desktop-indepth-library-views)
 for the desktop side.
 

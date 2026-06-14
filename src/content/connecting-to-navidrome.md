@@ -1,6 +1,6 @@
 # Connecting to Navidrome
 
-Firmium doesn't store any music itself. Instead, it connects to a music server you (or someone you trust) runs, most commonly [Navidrome](https://www.navidrome.org/), and streams your music from there. Any server that supports the OpenSubsonic API will work the same way.
+Firmium works without a server: it opens straight to your Home screen, showing any music you've added to your local library (see [Library Basics](/library-basics)). Connecting to a music server you (or someone you trust) runs, most commonly [Navidrome](https://www.navidrome.org/), lets Firmium stream your full library from there instead. Any server that supports the OpenSubsonic API will work the same way.
 
 ## What you'll need
 
@@ -14,18 +14,25 @@ If you don't know these details, ask whoever set up your server, or check the se
 > would be sent unencrypted. Use `https://` for any server reachable over the
 > internet.
 
-## Logging in
+## Connecting
 
-1. Open Firmium.
-2. Enter your server address, username, and password.
-3. Tap or click connect.
+1. Open Firmium - you'll land on the Home screen right away, even without a server.
+2. Open the account popup: on desktop, click the account icon in the sidebar; on
+   Android, tap the account icon at the top right of the screen.
+3. Enter your server address, username, and password, then tap or click connect.
 
-That's it. Firmium will fetch your library and take you to the Home screen.
+Firmium fetches your library in the background and the library views switch from your
+local files to your server's library.
 
-## Staying logged in
+## Staying connected
 
-By default, Firmium remembers your login so you don't have to type it in every time you open the app. This is controlled by the **Auto-Login** option (see [Settings](/settings)).
+By default, Firmium remembers your connection so you don't have to type it in every time
+you open the app. This is controlled by the **Auto-Login** option (see [Settings](/settings)).
 
 Your password is kept safe using your operating system's secure storage (the same system password manager used by your browser and other apps), not stored as plain text. On Linux this is GNOME Keyring or KWallet, and on Android it's the system's encrypted credential storage.
 
-If you ever switch servers or accounts, just log out and sign in again with the new details.
+## Disconnecting
+
+Open the same account popup and choose **Disconnect**. Firmium falls back to your local
+library immediately - no restart needed. If you switch to a different server or account,
+just disconnect and connect again with the new details.

@@ -27,7 +27,9 @@ references inside screens).
   (`StateFlow` of playback state: current track, queue, position, repeat/shuffle, etc.)
   and `lyricsState`. Wraps `AudioPlayer`/`NowPlayingController` (see
   [Android Architecture](/android-architecture)).
-- **`AuthViewModel`**: login/logout, wraps `AuthManager` + `SecureStorage`.
+- **`AuthViewModel`**: connect/disconnect, wraps `AuthManager` + `SecureStorage`.
+  `logout()` clears saved credentials and sets `isAuthenticated = false`, falling back to
+  the local library rather than a login screen.
 - **`SearchViewModel`**: debounced search-as-you-type state for `SearchScreen`.
 
 State flows from the database/network up: ViewModel methods are called either on
@@ -100,10 +102,11 @@ Routes:
 - **`AppPreferences`**: wraps a Jetpack `DataStore<Preferences>` (file `firmium_prefs`).
   All non-sensitive settings live here as typed keys (`stringPreferencesKey`,
   `booleanPreferencesKey`, etc.) - server URL, username, volume, crossfade/gapless
-  settings, repeat/shuffle mode, theme ids, LRCLIB/Last.fm toggles, auto-login, and the
-  serialized playlists JSON (`PLAYLISTS_JSON`). Each key has a `Flow` getter (with a
-  default) and a `suspend fun set...()`. `clear()` wipes everything (used by Settings >
-  Reset).
+  settings, repeat/shuffle mode, theme ids, LRCLIB/Last.fm toggles, auto-login,
+  `DOWNLOAD_FORMAT` (`"original"`/`"mp3"`/`"flac"`/`"wav"`/`"opus"`, default
+  `"original"`), and the serialized playlists JSON (`PLAYLISTS_JSON`). Each key has a
+  `Flow` getter (with a default) and a `suspend fun set...()`. `clear()` wipes everything
+  (used by Settings > Reset).
 - **`SecureStorage`**: Android Keystore-backed key/value store for credentials (server
   password, Last.fm API key/secret) - the Android equivalent of the desktop's OS keyring
   (`commands/credentials.rs`).
@@ -114,6 +117,17 @@ Routes:
   `removeTrack`) go through a `mutate { ... }` helper that loads the full list, applies
   the change, and re-saves it as JSON - there's no per-playlist storage, the whole list is
   read/written atomically on every change. `addTracks` de-duplicates by song id.
+- **`LocalLibraryRepository`** (`data/local/`): scans `Music/Firmium` via MediaStore
+  (falling back to direct file listing on API <29) and maps results into `Album`/
+  `Artist`/`Song`, with `local:<id>` ids. `invalidate()` clears its cache, forcing a
+  re-scan on next access - called by `DownloadManager` after a download completes.
+- **`DownloadManager`** (`data/download/`): `downloadTrack(song, format, albumArtist)`
+  and `downloadAlbum(album, format)` fetch from `AuthManager.downloadUrl()` (which maps
+  `"original"` to `format=raw`) via OkHttp, check the response `Content-Type` for a JSON
+  error before treating it as audio, and write the file under `Music/Firmium/<Artist>/<Album>/`
+  - via `MediaStore` + `IS_PENDING` on API 29+, or a direct file write +
+  `MediaScannerConnection.scanFile()` on API <29 (`WRITE_EXTERNAL_STORAGE` with
+  `maxSdkVersion="28"`).
 
 ## See also
 

@@ -32,6 +32,13 @@ playback, see [How it Works](/desktop-indepth-overview).
   `Api.getSimilarTracksFallback()` (genre and similar-artist matches), to populate
   `SimilarTracksPanel.svelte` with similar tracks for the current track (see
   [Queue & Playback](/queue-playback)).
+- **Visualizer** — toggles the `visualizerOpen` store, opening
+  `VisualizerPanel.svelte` and invoking `set_visualizer_enabled(true)`
+  (`false` on close) so the backend's analysis task only runs while the panel
+  is visible. The panel listens for `firmium:audio-analysis` events and
+  renders either an "orb" or frequency bars on a `<canvas>`, depending on
+  `visualizerMode` (see [Queue & Playback](/queue-playback) and
+  [Desktop Backend Internals](/desktop-backend-internals)).
 
 ## See also
 

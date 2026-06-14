@@ -95,6 +95,18 @@ used by the commands below to check whether a given extension is advertised.
   via `tokio::spawn`, same pattern as `scrobble`. Called from `src/lib/playback.ts` (track
   start/finish) and `src/lib/playerControls.ts` (pause/resume) with `state` one of
   `starting`/`playing`/`paused`/`stopped`.
+- [`save_play_queue(ids, current, position_ms)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
+  and `get_play_queue()` implement the Play Queue API's `savePlayQueue`/`getPlayQueue`
+  endpoints, used for cross-device "continue playback". `save_play_queue` is
+  fire-and-forget via `tokio::spawn`, same pattern as `scrobble`/`report_playback`; `ids`
+  is sent as repeated `id` params, `current` is the playing track's id, and `position_ms`
+  is the playback position. `get_play_queue` is async and returns
+  `Option<RemotePlayQueue>` (`{ entries: Vec<Song>, current: Option<String>, position_ms:
+  Option<i64>, changed_by: Option<String> }`, mapped via `map_songs()`), or `None` if the
+  server has no saved queue. Called from `src/lib/playback.ts`
+  (`schedulePlayQueueSave()`, debounced, on track start/pause/~30s intervals) and
+  `src/App.svelte` (`checkRemotePlayQueue()` after login, surfaced via
+  `ResumeQueuePrompt.svelte`).
 - [`get_sonic_similar_tracks(id, count)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
   and `find_sonic_path(start_song_id, end_song_id, count)` implement the `sonicSimilarity`
   extension's `getSonicSimilarTracks`/`findSonicPath` endpoints. Both return
@@ -139,6 +151,91 @@ out of the frontend.
 The Android app has its own, differently-shaped release-type inference
 (`ApiClient.kt::inferReleaseType()` + `AlbumListScreen.kt::effectiveType()`) - see
 "Known Cross-Platform Divergences" in the root `CLAUDE.md` before changing either.
+
+## Local library (`commands/local_library.rs`)
+
+Scans `~/Music/Firmium` (via `local_library_dir()`, also used by `downloads.rs`) and maps
+the audio files it finds into the same `Album`/`Artist`/`Song` shapes as
+`commands/mappers.rs`, so the frontend's `LocalApi` (`src/lib/localApi.ts`) can be used
+interchangeably with `Api` via `src/lib/dataSource.ts`.
+
+- `walk(dir, &mut Vec<RawTrack>)` recursively collects files matching `AUDIO_EXTENSIONS`
+  (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`, `alac`, `aiff`). `read_track(path)`
+  reads tags via the `lofty` crate, falling back to the filename/parent directory name
+  for a missing title/album.
+- The scan result is cached in `AppState.local_library` (`RwLock<Option<...>>`).
+  `invalidate_local_library(state)` clears the cache, forcing a re-scan on next access -
+  called after downloads (`commands/downloads.rs`) and imports complete.
+- Local ids are `local:<md5>` (of a relative path for songs, or a lowercased
+  artist/album name for artists/albums). `get_local_track_path(id)` and
+  `get_local_cover_art(id)` resolve these back to filesystem paths for playback and
+  cover art (the latter extracts embedded pictures via `lofty` and caches them).
+- `get_local_albums`/`get_local_artists`/`get_local_album_tracks`/
+  `get_local_artist_details`/`search_local`/`get_local_recent_albums`/
+  `get_local_random_albums`/`get_local_newest_albums`/`get_local_genres_list` mirror the
+  equivalent `subsonic.rs` commands' return shapes.
+- [`import_local_files(paths)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/local_library.rs)
+  is called when files/folders are dropped onto the window (`App.svelte`'s
+  `onDragDropEvent` handler, via `src/lib/localApi.ts::importLocalFiles`). For each path,
+  directories are walked with `walk()`; each audio file is read with `read_track()` and
+  copied (via `std::fs::copy` inside `spawn_blocking`) to
+  `<library>/<AlbumArtist>/<Album>/<filename>`, with `unique_dest()` appending ` (1)`,
+  ` (2)`, etc. on name collisions. Returns the number of files imported and invalidates
+  the scan cache if any were copied.
+
+## Downloads (`commands/downloads.rs`)
+
+[`download_track(song_id, format, album_artist, album, title, track_number, suffix)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/downloads.rs)
+and `download_album(album_id, format)` save tracks from the connected server into
+`~/Music/Firmium`, using the same folder layout as `import_local_files`:
+`<AlbumArtist>/<Album>/<TrackNum> - <Title>.<ext>` (`sanitize_path_component()` strips
+filesystem-unsafe characters from each component).
+
+- Builds a `stream` request with the standard auth params plus `format` - the frontend
+  passes `"raw"` for "Original" (the source file, unmodified) or `"mp3"`/`"flac"`/`"wav"`/
+  `"opus"` for a server-side transcode.
+- If the response `Content-Type` is `application/json` (a Subsonic error response rather
+  than audio), parses the OpenSubsonic error message and returns it as an `Err` instead
+  of writing a file.
+- For "Original" downloads, the file extension comes from the track's `suffix` field
+  (falling back to `mp3`); otherwise it's the requested format.
+- Writes the file via `spawn_blocking` (`std::fs::create_dir_all` + `std::fs::write`),
+  then calls `invalidate_local_library(&state)` so the new file appears in the local
+  library view.
+- `download_album` fetches the album's tracks via `get_album_tracks()` and calls
+  `download_track` for each one in sequence.
+
+## Audio visualizer (`visualizer.rs`)
+
+The visualizer taps the decoded audio stream inside `audio.rs::start_session`,
+just before the 25ms fade-in is applied: `VisualizerTap` (in `visualizer.rs`)
+wraps the `Box<dyn Source<Item = f32> + Send>` as a passthrough `Source` that
+downmixes interleaved samples to mono (summing one sample per channel and
+dividing by the channel count) and pushes them into a shared ring buffer
+(`VisualizerState.buffer`, capacity 4096 samples) guarded by a `parking_lot::Mutex`.
+
+`VisualizerState` is created once in `AudioPlayer::new()` and stored as
+`AudioPlayer.visualizer: Arc<VisualizerState>`. An `AtomicBool` (`enabled`)
+gates both the tap (it skips pushing samples when disabled) and the analysis
+task below, so the visualizer has no measurable cost when its panel is closed.
+
+[`spawn_analysis_task(app_handle, state)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/visualizer.rs)
+is spawned once via `tauri::async_runtime::spawn` and runs for the app's
+lifetime. Every 50ms, while enabled, it:
+
+- Takes the most recent 1024 samples from the ring buffer.
+- Applies a Hann window and runs a forward FFT (`rustfft::FftPlanner`).
+- Computes `bass` as the average magnitude of the bins below ~250Hz, normalized to 0..1.
+- Groups the magnitude spectrum into 24 log-spaced `bars`, normalized to 0..1
+  (`compute_bars()`).
+- Emits `firmium:audio-analysis` with `{ bass, bars }`.
+
+[`set_visualizer_enabled(enabled)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/playback.rs)
+toggles `VisualizerState.enabled` (and clears the ring buffer on disable).
+Called from `src/components/VisualizerPanel.svelte` when the panel opens/closes.
+The frontend listens for `firmium:audio-analysis` and renders either an "orb"
+(a glow/radius driven by `bass`) or a frequency-bar display (`bars[]`) on a
+`<canvas>`, per `visualizerMode` in `src/lib/stores.ts`.
 
 ## See also
 

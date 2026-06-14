@@ -18,6 +18,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 | Last.fm API Key / Secret | OS keyring, `lastfm_api_key` / `lastfm_secret` | - | Saved/loaded via `Keyring.save()` / `Keyring.load()` in `src/lib/api.ts` |
 | External Lyrics (LRCLIB) | `localStorage` `firmium_lrclib` | enabled | Checked in `src/lib/lyrics.ts` before falling back to the LRCLIB API |
 | Auto-Login | `localStorage` `firmium_auto_login` | enabled | Read on mount in `App.svelte`. If enabled and a password is saved (`firmium_save_pass`), loads the password from the keyring and calls `doConnect()` |
+| Download Format | `localStorage` `firmium_download_format` | `"original"` | `setDownloadFormat()` updates the `downloadFormat` store. Passed as `format` to the `download_track`/`download_album` Tauri commands (`"original"` maps to `format=raw`) - see [Desktop Backend Internals](/desktop-backend-internals) |
 
 ### Debug actions
 
@@ -29,7 +30,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 firmium_server, firmium_user, firmium_save_pass, firmium_auto_login,
 firmium_lrclib, firmium_theme, firmium_decorations, firmium_crossfade,
 firmium_crossfade_duration, firmium_volume, firmium_gapless, firmium_lastfm,
-firmium_bit_perfect
+firmium_bit_perfect, firmium_download_format
 ```
 
 ## Theme internals

@@ -30,6 +30,21 @@ If your server supports the OpenSubsonic `sonicSimilarity` extension (for exampl
 
 This feature only appears if your server advertises the extension; otherwise the button is hidden.
 
+## Visualizer (desktop)
+
+Click the waveform button in the player bar to open the visualizer panel. It reacts to whatever is currently playing, with two modes:
+
+- **Orb**: a glowing sphere that pulses with the bass.
+- **Bars**: a classic frequency bar display.
+
+Switch between modes using the buttons at the top of the panel; your choice is remembered. The visualizer only analyzes audio while the panel is open, so it has no effect on playback or CPU usage when closed.
+
+## Continue playback on another device
+
+If your server supports the OpenSubsonic Play Queue API, Firmium periodically saves your current queue, track, and playback position to the server. This happens when a track starts, when you pause, and roughly every 30 seconds while playing. Local-only tracks (downloaded files not on your server) aren't included in this sync.
+
+When you open Firmium on another device (or reconnect), it checks for a saved queue from elsewhere. If one is found, a banner appears asking "Resume queue from another device?" Choosing **Resume** loads the saved queue and seeks to the saved position. Choosing **Dismiss** ignores it.
+
 ## Bit-perfect audio (desktop, Linux/Windows)
 
 On desktop, Firmium can reopen the audio output device to match each track's native sample rate, avoiding the resampling that audio servers like PipeWire otherwise apply. When this is active, the player bar shows "Bit-perfect" alongside the track's format info.

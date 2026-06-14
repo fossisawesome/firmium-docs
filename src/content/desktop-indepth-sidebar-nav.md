@@ -4,15 +4,19 @@ What each control in `src/components/Sidebar.svelte` does.
 
 ## Sidebar & Navigation (`src/components/Sidebar.svelte`)
 
-- **Server label** — shows the connected server's name/URL, read from the `authServer` store.
+- **Server label** — shows the connected server's hostname (from the `authServer` store),
+  or "Local Files" when `isAuthed` is false.
 - **Navigation buttons** (Albums, Artists, Search, Playlists, Settings, etc.) — each calls
   `navToView(view)`, which updates the `activeView` store so `App.svelte` swaps the rendered
   view. The button for the currently active view is highlighted.
-- **Disconnect** — calls `handleLogout()`, which:
-  - Destroys the audio bridge (stopping any playing audio).
-  - Stops position-tracking polling.
-  - Clears the in-memory cover/list caches.
-  - Calls `clearAuth()` to remove stored credentials and return to the login screen.
+- **Account icon** — calls `openAccountModal()`, opening `AccountModal.svelte`
+  (`showAccountModal` store) as an overlay over the current view:
+  - If connected, shows the server hostname and a **Disconnect** button
+    (`handleDisconnect()` in `AccountModal.svelte`): destroys the audio bridge, stops
+    position-tracking polling, clears the in-memory cover/list caches, and calls
+    `clearAuth()`. The app falls back to the local library view without a restart.
+  - If not connected, shows the connect form (`Setup.svelte`: server URL, username,
+    password, save-password checkbox), calling `doConnect()` from `App.svelte` on submit.
 
 ## See also
 
