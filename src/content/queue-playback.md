@@ -45,12 +45,10 @@ If your server supports the OpenSubsonic Play Queue API, Firmium periodically sa
 
 When you open Firmium on another device (or reconnect), it checks for a saved queue from elsewhere. If one is found, a banner appears asking "Resume queue from another device?" Choosing **Resume** loads the saved queue and seeks to the saved position. Choosing **Dismiss** ignores it.
 
-## Bit-perfect audio (desktop, Linux/Windows)
+## Native-rate audio (desktop, Linux/Windows)
 
-On desktop, Firmium can reopen the audio output device to match each track's native sample rate, avoiding the resampling that audio servers like PipeWire otherwise apply. When this is active, the player bar shows "Bit-perfect" alongside the track's format info.
-
-This is controlled by the "Bit-perfect Audio" toggle in [Settings](/settings), and is on by default. A few things to know:
+On desktop, Firmium always reopens the audio output device to match each track's native sample rate, avoiding the resampling that audio servers like PipeWire otherwise apply. A few things to know:
 
 - If a crossfade is in progress when a track with a different sample rate starts, the rate change is deferred until the crossfade finishes, so the transition stays smooth. The output device switches to the new rate for the track after that.
-- If your audio device doesn't support a track's exact sample rate, Firmium falls back to the nearest supported rate, same as before.
-- Switching sample rates can cause a brief click or pop on some audio setups. If this bothers you, turn the toggle off to keep the output at a fixed rate.
+- If your audio device doesn't support a track's exact sample rate, Firmium plays the track at the device's rate instead, resampling internally so playback continues without interruption.
+- Switching sample rates can cause a brief click or pop on some audio setups.

@@ -207,12 +207,12 @@ filesystem-unsafe characters from each component).
 
 ## Audio visualizer (`visualizer.rs`)
 
-The visualizer taps the decoded audio stream inside `audio.rs::start_session`,
-just before the 25ms fade-in is applied: `VisualizerTap` (in `visualizer.rs`)
-wraps the `Box<dyn Source<Item = f32> + Send>` as a passthrough `Source` that
-downmixes interleaved samples to mono (summing one sample per channel and
-dividing by the channel count) and pushes them into a shared ring buffer
-(`VisualizerState.buffer`, capacity 4096 samples) guarded by a `parking_lot::Mutex`.
+The visualizer taps each decoded chunk inside the decode-feeder
+(`audio/session.rs::spawn_decode_feeder`), just before the 25ms fade-in is
+applied: `visualizer::process_chunk()` downmixes the interleaved samples to
+mono (summing one sample per channel and dividing by the channel count) and
+pushes them into a shared ring buffer (`VisualizerState.buffer`, capacity 4096
+samples) guarded by a `parking_lot::Mutex`.
 
 `VisualizerState` is created once in `AudioPlayer::new()` and stored as
 `AudioPlayer.visualizer: Arc<VisualizerState>`. An `AtomicBool` (`enabled`)

@@ -22,10 +22,6 @@ Smoothly blends the end of one track into the start of the next. You can set how
 
 Removes any pause between tracks by preparing the next track ahead of time. Turning this on turns off Crossfade. See [Queue & Playback](/queue-playback).
 
-### Bit-perfect Audio
-
-On by default. Reopens the audio output device at each track's native sample rate when possible, so the file plays without being resampled. May cause a brief click when the sample rate changes between tracks. On Linux with PipeWire, the system's audio server may still resample to its own fixed rate downstream — see [Troubleshooting](/troubleshooting) if the output rate doesn't seem to change.
-
 ## Downloads
 
 ### Download Format

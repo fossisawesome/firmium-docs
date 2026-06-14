@@ -23,7 +23,7 @@ src-tauri/            Rust backend (runs natively, not in the browser)
   src/commands/       Command modules: auth, credentials, themes, playback, mappers,
                       subsonic (OpenSubsonic API), lyrics, cover_cache, local_library,
                       downloads
-  src/audio.rs        Actual audio playback, using the `rodio` audio library
+  src/audio/          Actual audio playback, using `symphonia` (decoding) + `cpal` (output)
 
 themes/               Built-in color theme files (.toml)
 ```
@@ -36,7 +36,7 @@ themes/               Built-in color theme files (.toml)
 
 **Local library and downloads**: `src-tauri/src/commands/local_library.rs` scans `~/Music/Firmium` and maps the files it finds into the same `Album`/`Artist`/`Song` shapes used by the OpenSubsonic API, so the existing views work whether or not you're connected to a server. `src/lib/dataSource.ts` picks between `Api` (server) and `LocalApi` (local library) based on the `isAuthed` store; views read through `$dataSource` and re-fetch when it changes or when `dataSourceVersion` (`src/lib/stores.ts`) is bumped. `src-tauri/src/commands/downloads.rs` downloads tracks/albums from the server into the same `~/Music/Firmium` folder (honoring the Download Format setting), and dropping audio files/folders onto the window (`App.svelte`'s `onDragDropEvent` handler) copies them in via `import_local_files` - both invalidate `local_library.rs`'s scan cache so the local library view picks up the new files.
 
-**How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio.rs` (via Tauri commands defined in `src-tauri/src/commands/playback.rs`), which streams the audio file from your server and plays it through `rodio`. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
+**How playback works**: when you hit play, the frontend calls into `src-tauri/src/audio/` (via Tauri commands defined in `src-tauri/src/commands/playback.rs`), which streams the audio file from your server, decodes it with `symphonia`, and plays it through `cpal` at the track's native sample rate. Settings like crossfade and gapless playback (see [Queue & Playback](/queue-playback)) are handled in `src/lib/playback.ts`, which decides when to tell the Rust side to start fading or preloading the next track.
 
 **How themes work**: theme files are TOML files, either bundled in `themes/` or placed by the user in their config directory. The Rust side (`list_themes` in `src-tauri/src/commands/themes.rs`) finds and merges both sets, and the frontend applies the chosen theme's colors as CSS variables. See [Settings & Themes Internals](/settings-themes-internals) for the full mechanism.
 

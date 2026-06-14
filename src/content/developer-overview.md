@@ -43,6 +43,6 @@ A typical workflow:
 1. Run the app locally with `npm run dev:app` (desktop) or `./gradlew installDebug` (Android). See [Building from Source](/building-from-source) for full setup.
 2. For UI changes, find the relevant view in `src/views/` (desktop) or the matching screen/composable in `android/app/src/main/java/...` (Android).
 3. For changes to how data is fetched or stored, look in `src/lib/api.ts` and `src/lib/stores.ts` (desktop) or the equivalent ViewModel/repository classes (Android).
-4. For audio/playback changes, the desktop logic is split between `src/lib/playback.ts` (when to do what) and `src-tauri/src/audio.rs` (how it's actually played); Android playback is handled by `audio/AudioPlayer` and `audio/NowPlayingService`.
+4. For audio/playback changes, the desktop logic is split between `src/lib/playback.ts` (when to do what) and `src-tauri/src/audio/` (how it's actually played); Android playback is handled by `audio/AudioPlayer` and `audio/NowPlayingService`.
 
 If your change affects settings, themes, or how the app is built/packaged, remember to update the relevant docs page too: [Settings](/settings), [Customizing Themes](/custom-themes), [Settings & Themes Internals](/settings-themes-internals), or [Building from Source](/building-from-source).

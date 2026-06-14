@@ -39,5 +39,5 @@ Try forcing XWayland: `WAYLAND_DISPLAY= ./firmium` or set `GDK_BACKEND=x11` befo
 **Server connection refused**
 Make sure your server URL includes the port (e.g. `http://192.168.1.10:4533`) and that Firmium can reach it on your network. Check your server's logs if the URL looks correct.
 
-**Bit-perfect Audio doesn't seem to change the output rate**
+**Audio output doesn't seem to match the track's native sample rate**
 On PipeWire systems, Firmium's stream can open at the track's native sample rate while the ALSA sink itself stays locked at a fixed rate (commonly 48000Hz) — PipeWire then resamples before the signal reaches the DAC. Check with `pw-top` during playback: if the `alsa_output` sink row doesn't match your track's sample rate, add a `default.clock.allowed-rates` list (e.g. `[ 44100 48000 88200 96000 176400 192000 ]`) to `~/.config/pipewire/pipewire.conf.d/`, then restart PipeWire (`systemctl --user restart pipewire pipewire-pulse wireplumber`).

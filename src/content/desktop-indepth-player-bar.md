@@ -8,9 +8,7 @@ playback, see [How it Works](/desktop-indepth-overview).
 - **Album art / track info** — shows the current track's cover, title, and artist, read from
   the playback stores. Clicking the cover or text doesn't trigger navigation. Below the
   artist, a format line (e.g. `FLAC · 96 kHz · 24-bit · 1411 kbps`) is shown via
-  `formatTrackInfo()` when the server provides this metadata, with "Bit-perfect" appended
-  when the audio output is running at the track's native sample rate (see
-  [Queue & Playback](/queue-playback)).
+  `formatTrackInfo()` when the server provides this metadata.
 - **Volume slider** — drags call `setVolume()`, which updates the volume store and calls
   `audioBridge.setVolume()` to change playback volume on the Rust side immediately.
 - **Seek bar** — shows playback progress. While dragging, `isSeeking` is set so the position
