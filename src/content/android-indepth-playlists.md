@@ -39,6 +39,8 @@ best-effort basis (wrapped in `try/catch`, errors swallowed):
 - `retryPendingCreates(serverPlaylists)` - for each local playlist with `serverId == null
   && createPending && createAttempts < 3`, either adopts a same-named server playlist's
   id (avoiding a duplicate create) or calls `syncCreate(p)` again.
+- `syncNow(id)` - manually triggers `syncCreate(p)` for a single local playlist with
+  `serverId == null`, used by the row's "Sync" button to push it to the server on demand.
 
 ## API client (`data/api/ApiClient.kt`)
 
@@ -79,7 +81,9 @@ playlist's id.
 - **`PlaylistsScreen`** - renders `state.items`. `LaunchedEffect(Unit) {
   onRefreshServer() }` calls `playlistViewModel.refreshServerPlaylists()` on first
   composition. Each row shows a cloud icon when `item.isSynced`; the delete button is
-  only shown for `PlaylistListItem.Local` items. `onCreate`/`onDelete` call
+  only shown for `PlaylistListItem.Local` items, and a sync icon button is shown for
+  `PlaylistListItem.Local` items where `!isSynced`, calling `onSync` ->
+  `playlistViewModel.syncNow(id)`. `onCreate`/`onDelete` call
   `playlistViewModel.create()`/`delete()` directly (these operate on local ids only).
 - **`PlaylistDetailScreen`** - `AppNavGraph` detects `playlist/server-<id>` routes and
   passes `isServerOnly = true` with tracks loaded via

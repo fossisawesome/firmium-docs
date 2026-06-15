@@ -8,7 +8,7 @@ Open **Playlists** from the sidebar to see everything available on your server. 
 
 ## Cross-device sync
 
-Playlists created on one device (desktop or Android) appear on your other devices too, as long as the device was online when the playlist was created or changed. A small cloud icon marks playlists that are synced with the server. If a playlist was created while offline, the app retries syncing it the next time you open the Playlists view.
+Playlists created on one device (desktop or Android) appear on your other devices too, as long as the device was online when the playlist was created or changed. A small cloud icon marks playlists that are synced with the server. If a playlist was created while offline, the app retries syncing it the next time you open the Playlists view. You can also tap **Sync** on a local-only playlist to push it to the server immediately.
 
 ## Creating a playlist
 

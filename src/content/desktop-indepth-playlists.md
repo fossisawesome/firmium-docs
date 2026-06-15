@@ -10,6 +10,9 @@ What each control in the playlist views and `PlaylistMenu.svelte` does.
   `stores.ts`), merging local playlists with the server's `getPlaylists()` result. A small
   cloud icon badge marks playlists that are synced with the server (local playlist with a
   matching `serverId`) or exist only on the server (`source: 'server-only'`).
+- **Sync button** — local-only playlist cards (`source: 'local'`) show a **Sync** button
+  that calls `Api.createPlaylist()` and links the result via `playlists.setServerId()`,
+  pushing the playlist to the server on demand instead of waiting for the mount-time retry.
 - **Play All** — queues every track in the playlist and starts playback.
 - **Delete** — removes the playlist (after confirmation).
 - **Editing cover/name/description** — available unless the playlist `isServerOnly` (i.e.
