@@ -18,8 +18,12 @@ playback, see [How it Works](/desktop-indepth-overview).
   the current track instead of going back; otherwise moves to the previous queue item.
 - **Play/Pause** — calls `togglePlay()`, which toggles `playbackState` and tells the audio
   bridge to pause or resume the stream.
-- **Next** — calls `nextTrack()` to advance to the next item in the queue (respecting shuffle
-  if enabled).
+- **Next** — calls `nextTrack()` to advance to the next item in the queue. When
+  `shuffleEnabled` is true, `nextTrack()` instead picks a random index (other than the
+  current one) from the queue. `shuffleEnabled` is set by the **Shuffle** button on
+  album, artist, and playlist detail views (see [Library
+  Views](/desktop-indepth-library-views) and [Playlists](/desktop-indepth-playlists)),
+  not from the player bar itself.
 - **Repeat** — calls `cycleRepeat()`, cycling through Off → Repeat All → Repeat One. A small
   badge on the icon indicates the current mode.
 - **Lyrics** — toggles the `lyricsOpen` store and calls `fetchAndShowLyrics()` to load synced

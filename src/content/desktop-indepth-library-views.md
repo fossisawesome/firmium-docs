@@ -7,8 +7,12 @@ What each control in the library views (`src/views/*.svelte`) does.
 - **Album/Artist grids** (`AlbumList.svelte`, `ArtistList.svelte`) — fetch and display albums
   or artists as a grid of covers. Clicking an item navigates to its detail view.
 - **Album/Artist detail** (`AlbumDetail.svelte`, `ArtistDetail.svelte`) — show the track list
-  or discography for the selected item. `ArtistDetail` includes a **Play All** button that
-  queues all of the artist's tracks and starts playback.
+  or discography for the selected item. Both include **Play All** and **Shuffle** buttons:
+  Play All queues the album's (or, for `ArtistDetail`, the artist's whole discography's)
+  tracks via `setQueueSeamless()`; Shuffle calls `shufflePlay()` (`src/lib/playback.ts`) to
+  shuffle the same track list, enable the `shuffleEnabled` store, and start playback from
+  the first shuffled track (see [Player Bar](/desktop-indepth-player-bar) and
+  [Playlists](/desktop-indepth-playlists) for the shared `shufflePlay()` helper).
 - **Search** (`SearchView.svelte`) — typing and pressing **Search** (or Enter) calls
   `$dataSource.search()` and shows matching albums, artists, and tracks.
 - **Add to playlist** — available throughout these views on individual tracks/albums; opens
