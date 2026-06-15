@@ -147,8 +147,8 @@ input:focus-visible {
 }
 
 .sidebar-logo {
-  color: var(--accent);
-  font-size: 20px;
+  display: flex;
+  align-items: center;
 }
 
 .sidebar-title {

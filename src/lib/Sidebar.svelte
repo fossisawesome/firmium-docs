@@ -52,7 +52,17 @@
 
 <nav class="sidebar" class:open>
   <div class="sidebar-header">
-    <span class="sidebar-logo">⬡</span>
+    <span class="sidebar-logo">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="firmium-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e8c97e"/>
+            <stop offset="100%" stop-color="#863bff"/>
+          </linearGradient>
+        </defs>
+        <polygon points="12,2 22,7 22,17 12,22 2,17 2,7" stroke="url(#firmium-logo-grad)" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </span>
     <span class="sidebar-title">Firmium</span>
   </div>
   <div class="sidebar-search">

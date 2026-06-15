@@ -15,6 +15,14 @@ Firmium offers two ways to transition between tracks. You can pick one in [Setti
 
 If neither suits you, you can turn both off and tracks will simply play one after another with the player's normal behavior.
 
+## Scrobbling
+
+While a track plays, Firmium reports "Now Playing" and scrobble events to your server, so listening history shows up in Navidrome (and any Last.fm or ListenBrainz integration your server is configured to forward to). This happens automatically and needs no setup beyond a normal server connection.
+
+## ReplayGain
+
+If your server provides ReplayGain metadata for a track, Firmium applies it automatically during playback to even out volume differences between tracks and albums. There's no setting to turn this on or off — it's applied whenever the metadata is available.
+
 ## Track format info
 
 The player bar shows the format of the currently playing track, such as `FLAC · 96 kHz · 24-bit · 1411 kbps`, when this information is available from your server.

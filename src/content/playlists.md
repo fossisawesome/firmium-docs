@@ -6,6 +6,10 @@ Playlists in Firmium live on your server, so they're the same playlists you'd se
 
 Open **Playlists** from the sidebar to see everything available on your server. Tap a playlist to see its tracks and start playing.
 
+## Cross-device sync
+
+Playlists created on one device (desktop or Android) appear on your other devices too, as long as the device was online when the playlist was created or changed. A small cloud icon marks playlists that are synced with the server. If a playlist was created while offline, the app retries syncing it the next time you open the Playlists view.
+
 ## Creating a playlist
 
 From the Playlists view, create a new playlist and give it a name. You can then add tracks to it from any album, artist, or search results page.
