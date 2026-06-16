@@ -42,7 +42,7 @@ This feature only appears if your server advertises the extension; otherwise the
 
 Click the waveform button in the player bar to open the visualizer panel. It reacts to whatever is currently playing, with two modes:
 
-- **Orb**: a glowing sphere that pulses with the bass.
+- **Orb**: an NCS-style animated orb with pulsing rings, orbiting wisps, and a particle field. The colors are extracted from the current track's cover art. The orb reacts to bass in real time.
 - **Bars**: a classic frequency bar display.
 
 Switch between modes using the buttons at the top of the panel; your choice is remembered. The visualizer only analyzes audio while the panel is open, so it has no effect on playback or CPU usage when closed.

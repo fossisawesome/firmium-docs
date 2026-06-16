@@ -10,8 +10,23 @@ category list that drills down into per-category panels, mirroring the desktop a
   - **Color Theme** — dropdown listing `ALL_THEMES`; selecting one applies its colors via
     `LocalFirmiumColors` immediately.
 - **Playback**
-  - **Crossfade** — toggle plus a duration slider when enabled.
-  - **Gapless** — toggle for gapless playback.
+  - **Bit-Perfect Audio** — segmented selector: Off / Relaxed / Strict.
+    Stored as `"bit_perfect_mode"` in DataStore (`AppPreferences.BIT_PERFECT_MODE`).
+    Code path: `PlayerViewModel.setBitPerfectMode()` → `AudioPlayer.bitPerfectMode` → read
+    in `buildPlayer()` to set `AudioOffloadPreferences` on the ExoPlayer instance:
+    - **Off** — no offload configuration; standard software pipeline.
+    - **Relaxed** — `AUDIO_OFFLOAD_MODE_PREFERRED`, `setIsGaplessSupportRequired(false)`,
+      offload scheduling enabled. `PlayerViewModel.skipToNext()` calls `crossfadeToNext()`
+      only when `audioFormatsMatch()` returns true (same suffix, samplingRate, bitDepth);
+      otherwise calls `playAt()` for a hard cut. The position-tracking crossfade pre-roll
+      also fires for format-matched tracks.
+    - **Strict** — `AUDIO_OFFLOAD_MODE_REQUIRED`, `setIsGaplessSupportRequired(true)`,
+      offload scheduling enabled. Hard cuts; no crossfade.
+    Enabling Relaxed or Strict sets `crossfadeEnabled = false` in prefs and state.
+    Enabling Crossfade sets `bitPerfectMode = "off"`.
+  - **Crossfade** — toggle plus a duration slider when enabled. Greyed out when
+    Bit-Perfect is Relaxed or Strict.
+  - **Gapless** — toggle for gapless playback. Greyed out when Bit-Perfect is Relaxed.
 - **Downloads**
   - **Download Format** — dropdown (Original/MP3/FLAC/WAV/Opus) for track, album, and
     playlist downloads. See [Settings](/settings#downloads).

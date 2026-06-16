@@ -182,6 +182,15 @@ interchangeably with `Api` via `src/lib/dataSource.ts`.
   `<library>/<AlbumArtist>/<Album>/<filename>`, with `unique_dest()` appending ` (1)`,
   ` (2)`, etc. on name collisions. Returns the number of files imported and invalidates
   the scan cache if any were copied.
+- `prewarm_local_library()` triggers an eager scan on startup (called fire-and-forget
+  from `App.svelte`'s `onMount`) so `find_local_match` is instant when the user first
+  plays a track, even in server mode.
+- `find_local_match(title, artist, album)` searches `all_songs` case-insensitively for
+  a track matching `title` and (`album` or `artist`), returning its absolute file path
+  or `null`. Called by `src/lib/playback.ts::streamUrlFor()` to prefer a local copy over
+  a server stream, and by `src/lib/localApi.ts`.
+- `LocalLibraryCache::has_local_match(title, album)` is an internal method used by
+  `download_track` to skip re-downloading a track that is already present on disk.
 
 ## Downloads (`commands/downloads.rs`)
 
@@ -202,6 +211,10 @@ filesystem-unsafe characters from each component).
 - Writes the file via `spawn_blocking` (`std::fs::create_dir_all` + `std::fs::write`),
   then calls `invalidate_local_library(&state)` so the new file appears in the local
   library view.
+- Before issuing any HTTP request, `download_track` checks whether the track is already
+  in the local library via `LocalLibraryCache::has_local_match(title, album)` (title and
+  album name, case-insensitive). If it matches, the download returns immediately without
+  touching the network.
 - `download_album` fetches the album's tracks via `get_album_tracks()` and calls
   `download_track` for each one in sequence.
 
@@ -233,9 +246,16 @@ lifetime. Every 50ms, while enabled, it:
 [`set_visualizer_enabled(enabled)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/playback.rs)
 toggles `VisualizerState.enabled` (and clears the ring buffer on disable).
 Called from `src/components/VisualizerPanel.svelte` when the panel opens/closes.
-The frontend listens for `firmium:audio-analysis` and renders either an "orb"
-(a glow/radius driven by `bass`) or a frequency-bar display (`bars[]`) on a
-`<canvas>`, per `visualizerMode` in `src/lib/stores.ts`.
+The frontend (`src/components/VisualizerPanel.svelte`) listens for
+`firmium:audio-analysis` and drives a `requestAnimationFrame` loop at 60 fps.
+In orb mode it renders an NCS-style animated scene: a multi-layer radial-gradient
+glow core, three staggered expanding rings, four orbiting energy wisps, and a
+particle field, all in colors extracted from the current track's cover art via
+`extractOrbPalette()` in `src/lib/coverColor.ts` (4-bit histogram quantization,
+top-3 most-vibrant distinct buckets). The `bass` value drives orb scale (up to
++55%) and ring opacity. In bars mode it renders 24 log-spaced frequency bars in
+the palette's primary color. `visualizerMode` (orb/bars) is persisted in
+`src/lib/stores.ts` and toggled from the panel's header buttons.
 
 ## See also
 

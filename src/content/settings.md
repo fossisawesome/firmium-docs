@@ -14,13 +14,23 @@ Choose the color theme for the app, from the built-in options or any custom them
 
 ## Playback
 
+### Bit-Perfect Audio (Android only)
+
+Controls how Android routes audio to the hardware. Three modes are available:
+
+- **Off** — Standard software playback. All audio is resampled to 48 kHz by Android's audio mixer. Crossfade and Gapless work normally in this mode.
+- **Relaxed** — Enables hardware audio offload when the device supports it, bypassing the software resampler. Crossfade still fires automatically between tracks that share the same format, sample rate, and bit depth; gapless is disabled.
+- **Strict** — Requires hardware audio offload. Tracks play with hard cuts between them (no crossfade). Gapless playback is supported in this mode.
+
+Enabling Relaxed or Strict automatically disables the Crossfade toggle. Enabling Crossfade resets Bit-Perfect to Off.
+
 ### Crossfade
 
-Smoothly blends the end of one track into the start of the next. You can set how long the blend lasts (1-12 seconds). Turning this on turns off Gapless Playback, since the two don't work together. See [Queue & Playback](/queue-playback).
+Smoothly blends the end of one track into the start of the next. You can set how long the blend lasts (1-12 seconds). Turning this on turns off Gapless Playback, since the two don't work together. Enabling Crossfade also resets Bit-Perfect Audio to Off. See [Queue & Playback](/queue-playback).
 
 ### Gapless Playback
 
-Removes any pause between tracks by preparing the next track ahead of time. Turning this on turns off Crossfade. See [Queue & Playback](/queue-playback).
+Removes any pause between tracks by preparing the next track ahead of time. Turning this on turns off Crossfade. Not available when Bit-Perfect Audio is set to Relaxed. See [Queue & Playback](/queue-playback).
 
 ## Downloads
 
