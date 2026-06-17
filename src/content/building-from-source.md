@@ -81,3 +81,30 @@ export ANDROID_SIGNING_KEY_PASSWORD=key-password
 ```
 
 If these are not set, Gradle will build an unsigned APK.
+
+### Testing on Android Auto (DHU)
+
+Android Auto support (see [Android Architecture → Android Auto](/android-architecture)) is tested with the **Desktop Head Unit (DHU)**: the car interface runs on your computer while a real, USB-connected phone does the work. You do not need a car.
+
+**Install the DHU** (once) via Android Studio (**SDK Manager → SDK Tools → "Android Auto Desktop Head Unit Emulator"**) or the CLI:
+
+```bash
+sdkmanager "extras;google;auto"
+```
+
+It installs to `$ANDROID_HOME/extras/google/auto/desktop-head-unit`.
+
+> **Linux note:** the DHU binary is linked against LLVM's `libc++` and needs `libc++.so.1` + `libc++abi.so.1`, which are not bundled. On Arch they are not installed by default — add them with `yay -S libc++` (the AUR package). It also needs SDL2 (`sdl2`). Verify with `ldd .../desktop-head-unit | grep "not found"` (should be empty).
+
+**Enable Android Auto developer mode on the phone:** open the Android Auto settings, tap **Version** about ten times to unlock developer mode, then in **Developer settings** enable **Unknown sources** (so your sideloaded debug build is shown) and **Start head unit server**.
+
+**Run it** with the debug build installed (`./gradlew installDebug`):
+
+```bash
+adb forward tcp:5277 tcp:5277
+$ANDROID_HOME/extras/google/auto/desktop-head-unit
+```
+
+A car-display window opens. Choose **Firmium** from the app launcher and browse Home / Albums / Artists / Playlists; tap a track to confirm playback and the now-playing controls.
+
+ALSA warnings, a missing `~/.android/headunit.ini` ("using default values"), and repeated `Audio stream already playing` lines are harmless. `Failed to read from transport - disconnect. Exiting...` just means the session ended (phone locked, window closed, or cable jostled).

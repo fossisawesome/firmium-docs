@@ -13,6 +13,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 | Crossfade | `localStorage` `firmium_crossfade` | enabled | `setCrossfadeEnabled()` in `src/lib/stores.ts` updates the `crossfadeEnabled` store, used by `crossfadeToNext()` in `src/lib/playback.ts`. Mutually exclusive with Gapless |
 | Crossfade Duration | `localStorage` `firmium_crossfade_duration` | `5` (1-12) | `setCrossfadeDuration()` updates `crossfadeDuration`; passed to the Tauri `crossfade_to()` command as `fade_duration_ms = duration * 1000` |
 | Gapless Playback | `localStorage` `firmium_gapless` | enabled | `setGaplessEnabled()` updates `gaplessEnabled`. On track end, if gapless is enabled and crossfade isn't, `playback.ts` calls `preload_stream()` then `play_stream()`. Mutually exclusive with Crossfade |
+| ReplayGain | `localStorage` `firmium_replaygain` | enabled | `setReplayGainEnabled()` updates `replayGainEnabled` and calls the `set_replay_gain_enabled` Tauri command (`src-tauri/src/commands/queue.rs`), which sets `QueueStateInner::replay_gain_enabled`. When disabled, `replay_gain_db` returns `None` at all call sites in `queue.rs` and `queue_manager.rs` (initial play, crossfade, gapless preload). Android: `AppPreferences.REPLAY_GAIN_ENABLED` / `PlayerViewModel.setReplayGainEnabled()`; `replayGainDb` is set to `null` in `playAt()` and `crossfadeToNext()`. |
 | Last.fm Integration | `localStorage` `firmium_lastfm` | disabled | When enabled, reveals API Key/Secret fields |
 | Last.fm API Key / Secret | OS keyring, `lastfm_api_key` / `lastfm_secret` | - | Saved/loaded via `Keyring.save()` / `Keyring.load()` in `src/lib/api.ts` |
 | External Lyrics (LRCLIB) | `localStorage` `firmium_lrclib` | enabled | Checked in `src/lib/lyrics.ts` before falling back to the LRCLIB API |
@@ -30,7 +31,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 firmium_server, firmium_user, firmium_save_pass, firmium_auto_login,
 firmium_lrclib, firmium_theme, firmium_decorations, firmium_crossfade,
 firmium_crossfade_duration, firmium_volume, firmium_gapless, firmium_lastfm,
-firmium_download_format, firmium_bit_perfect_mode
+firmium_download_format, firmium_bit_perfect_mode, firmium_replaygain
 ```
 
 ## Theme internals

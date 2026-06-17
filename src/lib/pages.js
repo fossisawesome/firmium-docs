@@ -6,6 +6,7 @@ import queuePlaybackMd from '../content/queue-playback.md?raw'
 import playlistsMd from '../content/playlists.md?raw'
 import lyricsArtistBiosMd from '../content/lyrics-artist-bios.md?raw'
 import themesMd from '../content/custom-themes.md?raw'
+import androidAutoMd from '../content/android-auto.md?raw'
 import settingsMd from '../content/settings.md?raw'
 import troubleshootingMd from '../content/troubleshooting.md?raw'
 import developerOverviewMd from '../content/developer-overview.md?raw'
@@ -55,6 +56,7 @@ export const categories = [
     name: 'Guides',
     pages: [
       { path: '/custom-themes', label: 'Customizing Themes', content: themesMd },
+      { path: '/android-auto', label: 'Android Auto', content: androidAutoMd },
       { path: '/settings', label: 'Settings', content: settingsMd },
     ],
   },

@@ -26,8 +26,11 @@ android/app/src/main/java/com/fossisawesome/firmium/
 
   audio/                    Playback engine
     AudioPlayer.kt          Media3/ExoPlayer wrapper
+    PlaybackController.kt   App-scoped queue/transport orchestration (source of truth)
     NowPlayingService.kt    Foreground media service
-    NowPlayingController.kt
+    NowPlayingController.kt MediaSessionCompat + media notification
+    FirmiumMediaBrowserService.kt  Android Auto browse tree + session
+    MediaTree.kt            Android Auto media-id scheme + parser
 
   data/
     api/                    ApiClient, AuthManager — OpenSubsonic REST + token handling
@@ -46,9 +49,34 @@ android/app/src/main/java/com/fossisawesome/firmium/
 ViewModel (`viewmodel/`). ViewModels call `ApiClient` (in `data/api/`) to fetch data and
 expose it as Compose state; the UI recomposes automatically when that state changes.
 
-**How playback works**: `PlayerViewModel` drives `AudioPlayer`, which wraps Media3/ExoPlayer.
-Playback runs in the foreground `NowPlayingService` so audio continues when the app is in
-the background, with `NowPlayingController` bridging the service and the UI/notification.
+**How playback works**: queue and transport orchestration lives in `PlaybackController`, an
+application-scoped singleton held by `FirmiumApplication`. It owns the player state, drives
+`AudioPlayer` (which wraps Media3/ExoPlayer), and updates `NowPlayingController`.
+`PlayerViewModel` is a thin Activity-scoped facade that exposes `PlaybackController.state` to
+Compose and adds the UI-only concerns (lyrics, similar tracks). Keeping orchestration at app
+scope is what lets Android Auto control playback while no Activity exists. Playback runs in the
+foreground `NowPlayingService` so audio continues when the app is in the background, with
+`NowPlayingController` bridging the media session, notification, and `PlaybackController`.
+
+### Android Auto
+
+Android Auto is a media app, so the car does not render Firmium's Compose UI; it draws its own
+driver-safe templated UI from two things Firmium provides:
+
+- **`FirmiumMediaBrowserService`** (a `MediaBrowserServiceCompat`, declared in the manifest with
+  the `android.media.browse.MediaBrowserService` intent filter and the
+  `com.google.android.gms.car.application` metadata pointing at `res/xml/automotive_app_desc.xml`).
+  Its `onLoadChildren`/`onSearch` build the browse tree (Home, Albums, Artists, Playlists, plus
+  search) from the same `ApiClient`/`LocalLibraryRepository` the phone UI uses.
+- **The shared `MediaSessionCompat`**, owned by `NowPlayingController` and exposed via
+  `session()`. The browser service publishes its token, so the car's now-playing screen and
+  transport controls reuse the existing session.
+
+Browse-tree nodes and playable tracks are identified by ids defined in `MediaTree.kt`
+(e.g. `album:<id>`, `track|album|<albumId>|<songId>`). When the car plays an item, the session's
+`onPlayFromMediaId`/`onPlayFromSearch` callbacks forward to `PlaybackController`, which resolves
+the id to a queue and plays it through the same engine as the phone. State stays in sync because
+both the phone and the car drive the one `PlaybackController`.
 
 **How data fetching works**: all networking goes through `ApiClient.kt` (OkHttp), not
 `src/lib/*.ts` from the desktop app. Coroutine-based calls run via `viewModelScope.launch`

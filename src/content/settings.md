@@ -32,6 +32,10 @@ Smoothly blends the end of one track into the start of the next. You can set how
 
 Removes any pause between tracks by preparing the next track ahead of time. Turning this on turns off Crossfade. See [Queue & Playback](/queue-playback).
 
+### ReplayGain
+
+When enabled (the default), Firmium reads loudness gain values provided by your server (OpenSubsonic `replayGain` fields) and applies them during playback so tracks play at a consistent volume regardless of how they were mastered. Turn this off to hear tracks at their raw recorded levels.
+
 ## Downloads
 
 ### Download Format
