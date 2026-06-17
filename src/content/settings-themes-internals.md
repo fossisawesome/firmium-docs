@@ -18,6 +18,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 | External Lyrics (LRCLIB) | `localStorage` `firmium_lrclib` | enabled | Checked in `src/lib/lyrics.ts` before falling back to the LRCLIB API |
 | Auto-Login | `localStorage` `firmium_auto_login` | enabled | Read on mount in `App.svelte`. If enabled and a password is saved (`firmium_save_pass`), loads the password from the keyring and calls `doConnect()` |
 | Download Format | `localStorage` `firmium_download_format` | `"original"` | `setDownloadFormat()` updates the `downloadFormat` store. Passed as `format` to the `download_track`/`download_album` Tauri commands (`"original"` maps to `format=raw`) - see [Desktop Backend Internals](/desktop-backend-internals) |
+| Bit-Perfect Audio | `localStorage` `firmium_bit_perfect_mode` | `"relaxed"` | `setBitPerfectMode()` in `src/lib/stores.ts` updates the `bitPerfectMode` store and calls the `set_bit_perfect_mode` Tauri command (`src-tauri/src/commands/playback.rs`), which sets `AudioPlayer::bit_perfect_mode`. `"off"` disables stream reopening; `"relaxed"` (default) tries to match native sample rate; `"strict"` does the same but disables crossfade. |
 
 ### Debug actions
 
@@ -29,7 +30,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 firmium_server, firmium_user, firmium_save_pass, firmium_auto_login,
 firmium_lrclib, firmium_theme, firmium_decorations, firmium_crossfade,
 firmium_crossfade_duration, firmium_volume, firmium_gapless, firmium_lastfm,
-firmium_download_format
+firmium_download_format, firmium_bit_perfect_mode
 ```
 
 ## Theme internals
