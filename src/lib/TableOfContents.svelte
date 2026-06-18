@@ -1,20 +1,9 @@
 <script>
-  import { slugify } from './markdown-setup.js'
+  import { extractHeadings } from './markdown-setup.js'
 
   let { content } = $props()
 
-  const headings = $derived.by(() => {
-    const lines = content.split('\n')
-    const result = []
-    for (const line of lines) {
-      const match = line.match(/^(#{2,3})\s+(.*)$/)
-      if (!match) continue
-      const depth = match[1].length
-      const text = match[2].trim()
-      result.push({ depth, text, id: slugify(text) })
-    }
-    return result
-  })
+  const headings = $derived(extractHeadings(content))
 
   function onClick(e, id) {
     e.preventDefault()

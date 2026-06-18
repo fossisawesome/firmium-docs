@@ -1,20 +1,30 @@
-# Custom Themes
+# Customizing Themes
 
-Firmium ships with a number of built-in themes (e.g. `firmium`, `gruvbox`, `dracula`, `nord`, `tokyo-night`, the Catppuccin family, and more), defined as `.toml` files in [`themes/`](https://github.com/fossisawesome/firmium/tree/main/themes). You can add your own by dropping a `.toml` file in your user config directory.
+Firmium ships with a number of built-in color themes, including `firmium`, `gruvbox`, `dracula`, `nord`, `tokyo-night`, `svalbard` (an icy arctic palette), the Catppuccin family, and more. You can pick one in [Settings](/settings), or create your own.
 
-## Where to Put Custom Themes
+## Picking a theme
 
-On Linux, Firmium reads user themes from its app config directory (based on the app identifier `com.fossisawesome.firmium`, under the XDG config dir). You'll need to create the `themes` subdirectory first:
+Open **Settings** and choose a theme from the Appearance section. The change applies immediately.
 
-```bash
-mkdir -p ~/.config/com.fossisawesome.firmium/themes/
-```
+## Creating your own theme
 
-Then place your custom `.toml` theme files in that directory. Any custom theme with the same filename (id) as a built-in theme will override it.
+Themes are simple text files in [TOML](https://toml.io/) format. To add your own:
 
-## File Format
+1. Create a `themes` folder in Firmium's config directory:
 
-A theme file has a `name`, an optional `color_scheme` (`"dark"` or `"light"`, defaults to `"dark"`), and a `[colors]` table. Here's the built-in `firmium` theme as an example:
+   ```bash
+   mkdir -p ~/.config/com.fossisawesome.firmium/themes/
+   ```
+
+2. Create a new `.toml` file in that folder, for example `my-theme.toml`.
+3. Fill it in using the format below.
+4. Restart Firmium (or reopen Settings) so it shows up in the theme list.
+
+A theme with the same filename as a built-in theme will replace it.
+
+## File format
+
+Here's the built-in `firmium` theme as an example:
 
 ```toml
 name = "Firmium"
@@ -34,30 +44,29 @@ font = "'Courier New', monospace"
 timing = "0.15s"
 ```
 
-### Color Reference
+- `name`: the display name shown in Settings.
+- `color_scheme`: either `"dark"` or `"light"`. Defaults to `"dark"`.
+- `[colors]`: the colors used throughout the app.
+
+### Color reference
 
 | Key | Used for |
 | --- | --- |
 | `bg` | Main app background |
 | `surface` | Cards, panels, sidebar |
-| `surface2` | Nested/secondary surfaces (e.g. inputs, hover states) |
+| `surface2` | Nested elements like inputs and hover states |
 | `border` | Borders and dividers |
-| `text` | Primary text color |
-| `muted` | Secondary/muted text |
+| `text` | Main text color |
+| `muted` | Secondary, less important text |
 | `accent` | Highlights, active states, links |
-| `accent_dim` | Subtle accent backgrounds (e.g. selected rows) |
-| `error` | Error states and destructive actions |
-| `font` | Font family (optional, defaults to `'Courier New', monospace`) |
-| `timing` | Transition duration for theme-aware animations (optional, defaults to `0.15s`) |
-
-## How Themes Are Applied
-
-- The filename (without `.toml`) becomes the theme's `id`, used in `localStorage` and shown in [Settings → Appearance](/settings#appearance).
-- On the frontend, `applyThemeData()` in [`src/App.svelte`](https://github.com/fossisawesome/firmium/blob/main/src/App.svelte) sets each color as a CSS custom property on `:root` (`--bg`, `--surface`, `--accent`, etc.), plus `color-scheme`, `--font`, and `--timing`.
-- The `list_themes` Tauri command ([`src-tauri/src/lib.rs`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/lib.rs)) merges your user themes directory with the bundled themes and returns the combined list to the frontend.
+| `accent_dim` | Subtle accent backgrounds, like selected rows |
+| `error` | Error messages and destructive actions |
+| `font` | Font family (optional) |
+| `timing` | Speed of theme animations (optional) |
 
 ## Tips
 
-- Start by copying an existing theme from [`themes/`](https://github.com/fossisawesome/firmium/tree/main/themes) that's close to what you want and tweak the colors.
-- Restart Firmium (or reopen Settings) after adding a new theme file so it appears in the theme list.
-- Use `rgba()` for `border` and `accent_dim` if you want them to blend with different backgrounds.
+- Start by copying one of the [built-in themes](https://github.com/fossisawesome/firmium/tree/main/themes) that's close to what you want, and tweak the colors from there.
+- Use `rgba()` values for `border` and `accent_dim` so they blend nicely over different backgrounds.
+
+For details on how Firmium loads and applies theme files internally, see [Settings & Themes Internals](/settings-themes-internals).
