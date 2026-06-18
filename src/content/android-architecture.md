@@ -32,6 +32,11 @@ android/app/src/main/java/com/fossisawesome/firmium/
     FirmiumMediaBrowserService.kt  Android Auto browse tree + session
     MediaTree.kt            Android Auto media-id scheme + parser
 
+  wear/                     Wear OS companion bridge (phone side)
+    WearContract.kt         Data Layer paths/keys (mirrored in the :wear module)
+    WearRemoteService.kt    Receives watch transport commands (WearableListenerService)
+    WearStateSync.kt        Pushes now-playing snapshots + art to the watch
+
   data/
     api/                    ApiClient, AuthManager — OpenSubsonic REST + token handling
     model/                  Artist, Album, Song, Playlist data classes
@@ -77,6 +82,30 @@ Browse-tree nodes and playable tracks are identified by ids defined in `MediaTre
 `onPlayFromMediaId`/`onPlayFromSearch` callbacks forward to `PlaybackController`, which resolves
 the id to a queue and plays it through the same engine as the phone. State stays in sync because
 both the phone and the car drive the one `PlaybackController`.
+
+### Wear OS companion
+
+The Wear OS app is a second Gradle module, `android/wear/`, with its own Compose for Wear OS UI.
+It shares the phone app's `applicationId` (`com.fossisawesome.firmium`) so the system associates
+the two, but shares no code with `:app`. It is a remote only — no auth, API client, or player; all
+playback stays on the phone, driven by the same app-scoped `PlaybackController`.
+
+The two halves talk over the **Wearable Data Layer API** (`play-services-wearable`):
+
+- **Commands (watch → phone)** go over the `MessageClient` on path `/firmium/cmd`, with a UTF-8
+  payload (`play_pause`, `next`, `prev`, `set_volume:<0..1>`). On the phone, `WearRemoteService`
+  (a `WearableListenerService`, declared in the manifest with a `MESSAGE_RECEIVED` intent filter
+  scoped to `/firmium`) receives them, hops to the main thread, and calls the matching
+  `PlaybackController` method. Being a listener service lets the phone wake to handle a command
+  while backgrounded.
+- **State (phone → watch)** goes over the `DataClient` on path `/firmium/now_playing`.
+  `WearStateSync` (started from `FirmiumApplication`) observes `PlaybackController.state` and writes
+  a `DataMap` snapshot (title, artist, album, isPlaying, volume) plus a downscaled JPEG cover-art
+  `Asset` whenever the track changes. `DataClient` retains the latest item, so the watch renders the
+  correct now-playing the moment its UI opens.
+
+The wire constants live in `WearContract.kt`, duplicated in both modules — keep the two copies in
+sync. This remote-control layer is also the groundwork for a future standalone-listening mode.
 
 **How data fetching works**: all networking goes through `ApiClient.kt` (OkHttp), not
 `src/lib/*.ts` from the desktop app. Coroutine-based calls run via `viewModelScope.launch`
