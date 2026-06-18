@@ -12,6 +12,10 @@ Show or hide the native title bar and window borders (Linux desktop only). Turn 
 
 Choose the color theme for the app, from the built-in options or any custom themes you've added. See [Customizing Themes](/custom-themes).
 
+### Visualizer
+
+Turn on an audio-reactive visualizer for the now playing screen. It's off by default. When enabled, pick a style: **Bars** (a frequency-bar spectrum), **Orb** (a glowing audio-reactive orb), or **Oscilloscope** (the waveform wrapped into a circle). On mobile you can also tap the visualizer to cycle styles, and the toggle in the now playing screen switches between the album art and the visualizer.
+
 ## Playback
 
 ### Bit-Perfect Audio

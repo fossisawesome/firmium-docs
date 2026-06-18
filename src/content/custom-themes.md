@@ -1,6 +1,6 @@
 # Customizing Themes
 
-Firmium ships with a number of built-in color themes, including `firmium`, `gruvbox`, `dracula`, `nord`, `tokyo-night`, the Catppuccin family, and more. You can pick one in [Settings](/settings), or create your own.
+Firmium ships with a number of built-in color themes, including `firmium`, `gruvbox`, `dracula`, `nord`, `tokyo-night`, `svalbard` (an icy arctic palette), the Catppuccin family, and more. You can pick one in [Settings](/settings), or create your own.
 
 ## Picking a theme
 

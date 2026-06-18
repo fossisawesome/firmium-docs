@@ -6,6 +6,8 @@ Playlists in Firmium live on your server, so they're the same playlists you'd se
 
 Open **Playlists** from the sidebar to see everything available on your server. Tap a playlist to see its tracks and start playing.
 
+Playlists without a custom cover show an automatic mosaic built from the first few tracks' album art (one to four covers, arranged like a grid), so they're easier to tell apart at a glance.
+
 ## Cross-device sync
 
 Playlists created on one device (desktop or Android) appear on your other devices too, as long as the device was online when the playlist was created or changed. A small cloud icon marks playlists that are synced with the server. If a playlist was created while offline, the app retries syncing it the next time you open the Playlists view. You can also tap **Sync** on a local-only playlist to push it (and its tracks) to the server immediately.
@@ -18,7 +20,7 @@ From the Playlists view, create a new playlist and give it a name. You can then 
 
 Open a playlist to:
 
-- Add or remove tracks
+- Add or remove tracks (the remove button sits on each track row; removals are saved to the server)
 - Reorder tracks using the up/down arrows on each track
 - Rename the playlist or edit its description
 

@@ -34,13 +34,17 @@ So the car UI will not look pixel-for-pixel like the phone app, but it gives you
 The car menu mirrors your phone library:
 
 - **Home** shows your recently played and a rotating set of picks, for a quick start.
-- **Albums** and **Artists** let you browse your full library and drill into tracks.
+- **Music** opens an A–Z index. Pick a letter to see the albums that start with it, instead of
+  loading your entire library at once (which could stall on a poor connection).
+- **Artists** lets you browse artists and drill into their albums and tracks.
 - **Playlists** lists your playlists, both the ones synced to your server and any kept on the
-  phone.
+  phone. Each playlist starts with a **Shuffle** entry that plays the whole playlist in random order.
 - **Search** lets you find a song, album, or artist.
 
 Tap any track, album, or playlist to start playing. The now-playing screen shows the cover art,
-title, and artist, with play/pause, skip, and seek controls.
+title, and artist, with play/pause, skip, and seek controls, plus **shuffle** and **repeat**
+toggles and a **queue** ("Up Next") list you can jump around in. The car interface is tinted to
+match the current track's cover art.
 
 ## Voice control
 
