@@ -38,6 +38,18 @@ ViewModel state pattern and the full route table, see [Android Internals](/andro
   equivalent of the desktop sidebar's account icon (see
   [Desktop In-depth: Sidebar & Navigation](/desktop-indepth-sidebar-nav)).
 
+## Track ratings
+
+`PlayerViewModel.setRating()` calls `ApiClient.setRating()` (fire-and-forget) and updates the current track's `userRating` in `PlaybackController`. `FullScreenPlayer.kt` renders a `StarRating` composable (5 `Icons.Default.Star`/`StarBorder` icons) below the artist name, always visible. Android Auto gets a thumbs up/down toggle via a custom action in `NowPlayingController` (maps to rating 5/0).
+
+## Filter chips
+
+`AlbumListScreen.kt` extracts unique genres and decades from `state.albums` and renders `FlowRow` filter chips. Filtering is client-side using `remember` derivations. Genre/decade selections use AND across categories, OR within a category. `AlbumDetailScreen.kt` shows BPM range chips when tracks have BPM data.
+
+## Multi-server
+
+`AuthManager` manages a server list persisted as JSON in `AppPreferences.serverListJson`. `savedServers()` returns the list, `addToServerList()` upserts, `removeFromServerList()` deletes (including SecureStorage credential). `switchToSaved()` loads the password from SecureStorage (keyed by `firmium::$url`), calls `setCredentials()`, and updates active server prefs. `AuthViewModel` exposes `switchToServer()` and `removeServer()` to the UI. `AccountDialog` renders a `SavedServersList` composable above the login form when saved servers exist.
+
 ## Local library
 
 When `AuthManager.isAuthenticated` is false, the same screens render the **local

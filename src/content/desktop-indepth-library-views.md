@@ -29,6 +29,20 @@ What each control in the library views (`src/views/*.svelte`) does.
   render as already-downloaded, including after restarting the app — there is no
   separate persisted "downloaded" flag, the filesystem is the source of truth.
 
+## Track ratings
+
+`TrackRow.svelte` has an `onRate` callback prop. When authenticated, parent views (`AlbumDetail.svelte`, `PlaylistDetail.svelte`) pass a handler that calls `Api.setRating()` (fire-and-forget via `set_rating` Tauri command in `commands/subsonic.rs`) and updates the track's `userRating` in local state. The rating widget renders 5 inline SVG stars (`IconStarFilled`/`IconStarEmpty` from `icons.ts`), hidden by default and visible on row hover or when the track has a nonzero rating (CSS in `style.css`, `.track-stars`).
+
+## Filter chips
+
+`AlbumList.svelte` extracts unique genres and decades from the album list (using `extractGenres()` and `albumDecade()` from `utils.ts`) and renders them as filter chips above the `VirtualList`. Filtering is client-side via `$derived` reactivity. Genre and decade selections use AND across categories, OR within a category.
+
+`AlbumDetail.svelte` and `PlaylistDetail.svelte` show BPM range chips (`<80`, `80-120`, `120+`) when any track in the list has BPM data. These filter the displayed track list client-side.
+
+## Multi-server
+
+`stores.ts` maintains a `serverList` store (persisted to `firmium_servers` in localStorage) as `SavedServer[]`. `Setup.svelte` renders saved servers above the login form. `switchServer()` in `stores.ts` clears the queue, clears the list cache (`clearAll()` from `listCache.ts`), calls `setAuth()`, and bumps `dataSourceVersion` to trigger library reload. Keyring entries are parameterized by server URL via the `service` parameter in `credentials.rs`.
+
 ## Local library
 
 When not connected to a server, these same views render your local library instead:

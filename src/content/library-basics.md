@@ -25,6 +25,18 @@ Shows what's new and what you've been listening to: recently added albums and re
 
 Your full album library. Tap an album to see its tracklist, artwork, and other details, and to start playing it.
 
+### Filtering
+
+The album list shows filter chips for **decade** and **genre** at the top. Tap one or more chips to narrow the list. Multiple selections within a category act as OR (any match); selections across categories act as AND. Tap a highlighted chip to deselect it, or tap **Clear filters** to reset.
+
+### Track ratings
+
+Tracks can be rated 1-5 stars. On desktop, hover over a track row to reveal the stars; tap a star to set the rating. Tapping the current rating clears it. On Android, stars are always visible on the now-playing screen. Ratings sync to your server.
+
+### BPM filter
+
+Album detail and playlist track lists show BPM range chips when tracks have BPM data. Filter by preset ranges (<80, 80-120, 120+) to find tracks at the tempo you want.
+
 ## Artists
 
 Browse your music by artist. Each artist page shows their albums, and if available, a short biography and photo (see [Lyrics & Artist Bios](/lyrics-artist-bios)).

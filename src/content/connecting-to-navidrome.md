@@ -35,8 +35,13 @@ you open the app. This is controlled by the **Auto-Login** option (see [Settings
 
 Your password is kept safe using your operating system's secure storage (the same system password manager used by your browser and other apps), not stored as plain text. On Linux this is GNOME Keyring or KWallet, and on Android it's the system's encrypted credential storage.
 
+## Multiple servers
+
+Firmium saves every server you connect to. On the connection screen (account popup), saved servers appear above the login form. Tap **Connect** next to a saved server to switch to it instantly, or tap the X to remove it. Each server's password is stored separately in secure storage.
+
+Switching servers clears the current playback queue and reloads your library from the new server.
+
 ## Disconnecting
 
 Open the same account popup and choose **Disconnect**. Firmium falls back to your local
-library immediately - no restart needed. If you switch to a different server or account,
-just disconnect and connect again with the new details.
+library immediately - no restart needed.
