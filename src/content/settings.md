@@ -14,7 +14,7 @@ Choose the color theme for the app, from the built-in options or any custom them
 
 ### Visualizer
 
-Turn on an audio-reactive visualizer for the now playing screen. It's off by default. When enabled, pick a style: **Bars** (a frequency-bar spectrum), **Orb** (a glowing audio-reactive orb), or **Oscilloscope** (the waveform wrapped into a circle). On mobile you can also tap the visualizer to cycle styles, and the toggle in the now playing screen switches between the album art and the visualizer.
+Turn on an audio-reactive visualizer for the now playing screen. It's off by default. When enabled, pick a style: **Bars** (a frequency-bar spectrum), **Orb** (a glowing audio-reactive orb), or **Oscilloscope** (the waveform wrapped into a circle). On both desktop and mobile you can tap the visualizer to cycle styles, and the toggle in the now playing screen switches between the album art and the visualizer.
 
 ## Playback
 
@@ -40,6 +40,22 @@ Removes any pause between tracks by preparing the next track ahead of time. Turn
 
 When enabled (the default), Firmium reads loudness gain values provided by your server (OpenSubsonic `replayGain` fields) and applies them during playback so tracks play at a consistent volume regardless of how they were mastered. Turn this off to hear tracks at their raw recorded levels.
 
+### Continue playing after queue ends
+
+When enabled, Firmium keeps playing once your queue runs out by adding tracks similar to the last song (Smart Radio). Off by default. See [Discovery & Smart Radio](/discovery).
+
+## Equalizer
+
+A multi-band equalizer with its own section in Settings. It's off by default; flip **Enable Equalizer** to apply the active profile to playback.
+
+- **Output Device** — choose which device a profile is assigned to. Firmium auto-detects your output devices; the profile assigned to your current default device is the one you actually hear.
+- **Mode** — **Graphic** gives a fixed 10-band layout (31 Hz to 16 kHz) with one gain slider per band. **Parametric** lets you define your own bands by frequency, gain, and Q.
+- **Profile** — pick the active profile for the selected device, or **Save as** to store the current settings under a name. Delete removes a profile.
+
+On desktop, profiles are stored in `eq.toml` in Firmium's config folder. On mobile you can't browse that file directly, so use **Import profile** to pick a `.toml` file (for example one exported from the desktop app) through the system file picker; its profiles are added to your list.
+
+On desktop, the equalizer is bypassed when **Bit-Perfect Audio** is set to Strict, so the signal stays untouched in that mode. On Android the equalizer uses the system audio effects; parametric Q is approximated since the system equalizer only exposes fixed bands.
+
 ## Downloads
 
 ### Download Format
@@ -60,6 +76,10 @@ downloaded in the track list, even after restarting the app.
 ### Last.fm Integration
 
 Use your own [Last.fm](https://www.last.fm/) account to fetch artist photos and biographies. When enabled, you'll be asked for your Last.fm API key and secret.
+
+### ListenBrainz Scrobbling
+
+Submit each completed track to [ListenBrainz](https://listenbrainz.org/) alongside your server's own scrobbling. When enabled, paste your ListenBrainz user token; Firmium posts a listen (artist, track, release, timestamp) every time a track finishes. Clearing the token or turning this off stops submissions.
 
 ### External Lyrics (LRCLIB)
 

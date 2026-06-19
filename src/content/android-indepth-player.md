@@ -17,7 +17,9 @@ does.
 - **Album art** — displayed with a background gradient extracted from the art via Android's
   Palette API, darkened to ~22% opacity. The art shrinks slightly when playback is paused.
 - **Track format** — shows the same format line as the player bar below the artist name,
-  when available.
+  when available. Tapping it expands an audio-stats block (the `AudioStats` composable):
+  BPM and ReplayGain track/album gain + peak read from the `Song` model (display only, no
+  API calls). Fields the server omits are shown as `—`.
 - **Tap album art** — opens the Lyrics sheet.
 - **Swipe left/right** — swiping the art left skips to the next track, swiping right goes to
   the previous track.

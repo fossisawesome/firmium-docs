@@ -218,6 +218,32 @@ filesystem-unsafe characters from each component).
 - `download_album` fetches the album's tracks via `get_album_tracks()` and calls
   `download_track` for each one in sequence.
 
+## Equalizer DSP (`audio/eq.rs`, `commands/equalizer.rs`)
+
+The equalizer is a hand-rolled biquad IIR chain (no external DSP crate). `audio/eq.rs`
+implements RBJ "Audio EQ Cookbook" coefficients for low-shelf, peaking, and high-shelf
+bands (`Biquad`, transposed direct form II). An `EqChain` holds one biquad per band per
+channel, since filter state cannot be shared across interleaved channels, and exposes
+`process_interleaved()`.
+
+Live state is shared via `EqShared { generation: AtomicU64, config: Mutex<EqRuntimeConfig> }`,
+stored as `AudioPlayer.eq: Arc<EqShared>` and constructed in `AudioPlayer::new()` from the
+active profile resolved by `commands::equalizer::resolve_runtime()`. The decode feeder
+(`audio/session.rs::spawn_decode_feeder`) applies the chain **between ReplayGain and the
+visualizer tap**, so the visualizer reflects the EQ'd signal. Each feeder caches the last
+seen `generation` and rebuilds its `EqChain` (at the session's native sample rate) only when
+the generation changes — a cheap atomic read per chunk. When **Bit-Perfect** is Strict the
+feeder skips the EQ entirely, keeping the signal bit-exact.
+
+`commands/equalizer.rs` owns all file IO. Profiles live in `eq.toml` under the app config dir
+(same `toml` crate as themes), with `[settings] enabled`, `[profiles.NAME]` (type + bands)
+and `[devices."NAME"] active_profile` tables. Commands — `get_eq_state`, `save_eq_profile`,
+`delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled` — mutate the
+file and then call `reapply()`, which re-resolves the default device's active profile and
+pushes it into `AudioPlayer.set_eq_runtime()` (bumping the generation). Graphic profiles map
+the first/last bands to shelves and the rest to peaking filters; parametric profiles are all
+peaking with explicit Q.
+
 ## Audio visualizer (`visualizer.rs`)
 
 The visualizer taps each decoded chunk inside the decode-feeder

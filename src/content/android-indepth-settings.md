@@ -27,6 +27,21 @@ category list that drills down into per-category panels, mirroring the desktop a
   - **Crossfade** — toggle plus a duration slider when enabled. Greyed out when
     Bit-Perfect is Relaxed or Strict.
   - **Gapless** — toggle for gapless playback. Greyed out when Bit-Perfect is Relaxed.
+- **Equalizer** (`FirmiumEqualizerPanel` in `SettingsScreen.kt`)
+  - Self-contained panel that talks to `AppPreferences` directly (DataStore keys
+    `eq_enabled`, `eq_mode`, `eq_active_profile`, `eq_profiles_json`). Profiles are stored as
+    a Gson JSON array of `EqProfile` (`data/eq/EqProfile.kt`).
+  - **Enable Equalizer**, a profile list (tap to activate, Delete to remove), a Graphic/
+    Parametric editor (10 sliders / freq-gain-Q rows), and **Save as** to create a profile.
+  - **Import profile** launches `ActivityResultContracts.OpenDocument()`; the picked `.toml`
+    is parsed by the hand-rolled `data/eq/TomlEqParser.kt` (handles the desktop's
+    array-of-tables output and inline tables), merged into the profile list, and activated.
+  - `PlaybackController` observes the four EQ prefs via `combine(...)`, builds an
+    `EqualizerController.Config`, and calls `AudioPlayer.equalizer.setConfig()`. The
+    `EqualizerController` (`audio/EqualizerController.kt`) attaches
+    `android.media.audiofx.Equalizer` + `BassBoost` to each ExoPlayer session id (assigned up
+    front in `AudioPlayer.setupEq()`), mapping each system band to the nearest logical band's
+    gain. Parametric Q is not representable in the system EQ and is ignored.
 - **Downloads**
   - **Download Format** — dropdown (Original/MP3/FLAC/WAV/Opus) for track, album, and
     playlist downloads. See [Settings](/settings#downloads).

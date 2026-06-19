@@ -39,8 +39,14 @@ playback, see [How it Works](/desktop-indepth-overview).
   (`false` on close) so the backend's analysis task only runs while the panel
   is visible. The panel listens for `firmium:audio-analysis` events and
   renders either an "orb" or frequency bars on a `<canvas>`, depending on
-  `visualizerMode` (see [Queue & Playback](/queue-playback) and
+  `visualizerMode`. Clicking the canvas cycles orb → bars → oscilloscope (see
+  [Queue & Playback](/queue-playback) and
   [Desktop Backend Internals](/desktop-backend-internals)).
+- **Audio Stats** — toggles the `audioStatsOpen` store, opening
+  `AudioStatsPanel.svelte`. Display only (no API calls): it reads the current
+  track's `trackInfo`, `bpm`, and `replayGain` (typed `ReplayGain` with
+  track/album gain and peak) from the playback stores and renders them as a
+  small table. Fields the server omits are shown as `—` or hidden.
 
 ## See also
 
