@@ -6,11 +6,23 @@ The player bar at the bottom of the screen controls playback: play/pause, skip t
 
 When you play an album or playlist, its tracks are added to your queue, and playback moves through them in order. You can see what's playing now and what's coming up next from the player bar.
 
+## Shuffle and repeat
+
+The shuffle button toggles random play order. The repeat button cycles through three states each time you tap it: first **repeat all** (the queue loops forever), then **repeat once** (the current track plays again one more time, then repeat turns off), then **off**. On Android these controls also appear in the playback notification.
+
+## Now-playing screen (Android)
+
+Open the full-screen player by tapping the player bar. From there you can:
+
+- **Tap the cover art** to show the lyrics in place of the artwork; tap the **X** to return to the art.
+- **Long-press the cover art** to pop up the 1-5 star rating for the track.
+- **Tap the three-dot button** next to the progress bar to open a menu of actions: volume, add to playlist, visualizer, track info, view artist, add to queue, equalizer, and download.
+
 ## Crossfade vs. gapless playback
 
 Firmium offers two ways to transition between tracks. You can pick one in [Settings](/settings), and they can't both be on at once:
 
-- **Crossfade**: the end of one track fades out while the next track fades in, so they blend smoothly. You can set how long the blend lasts, from 1 to 12 seconds.
+- **Crossfade**: the end of one track fades out while the next track fades in, so they blend smoothly. You can set how long the blend lasts, from 1 to 12 seconds, and choose the curve — **Linear** for an even volume fade, or **Logarithmic** for an equal-power fade that keeps the overlap sounding consistent.
 - **Gapless playback**: the next track is loaded ahead of time so it starts the instant the current one ends, with no fade and no silence in between. This is best for albums recorded as one continuous piece of music.
 
 If neither suits you, you can turn both off and tracks will simply play one after another with the player's normal behavior.

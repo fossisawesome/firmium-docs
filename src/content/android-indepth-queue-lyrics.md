@@ -18,6 +18,10 @@ Lyrics fetching, caching, and playback-position sync are handled by
 used by the desktop app. It cancels in-flight fetches when the track changes
 so a slow response for a previous track can't overwrite the current one.
 
+The line rendering (loading/empty/synced karaoke list) lives in the reusable `LyricsLines`
+composable in the same file, so the same view is used both by `LyricsSheet` and inline on the
+full-screen player (where it replaces the cover art when you tap it).
+
 - Shows a loading spinner while lyrics are being fetched.
 - Shows a "No lyrics available" message if none are found.
 - For synced lyrics, the currently playing line is highlighted and the view auto-scrolls to

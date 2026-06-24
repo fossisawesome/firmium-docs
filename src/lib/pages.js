@@ -6,6 +6,7 @@ import queuePlaybackMd from '../content/queue-playback.md?raw'
 import playlistsMd from '../content/playlists.md?raw'
 import lyricsArtistBiosMd from '../content/lyrics-artist-bios.md?raw'
 import discoveryMd from '../content/discovery.md?raw'
+import recapMd from '../content/recap.md?raw'
 import themesMd from '../content/custom-themes.md?raw'
 import androidAutoMd from '../content/android-auto.md?raw'
 import wearosMd from '../content/wearos.md?raw'
@@ -16,6 +17,7 @@ import architectureMd from '../content/architecture-overview.md?raw'
 import buildingMd from '../content/building-from-source.md?raw'
 import settingsThemesInternalsMd from '../content/settings-themes-internals.md?raw'
 import desktopBackendInternalsMd from '../content/desktop-backend-internals.md?raw'
+import errorHandlingInternalsMd from '../content/error-handling-internals.md?raw'
 import desktopIndepthOverviewMd from '../content/desktop-indepth-overview.md?raw'
 import desktopIndepthPlayerBarMd from '../content/desktop-indepth-player-bar.md?raw'
 import desktopIndepthSidebarNavMd from '../content/desktop-indepth-sidebar-nav.md?raw'
@@ -53,6 +55,7 @@ export const categories = [
       { path: '/playlists', label: 'Playlists', content: playlistsMd },
       { path: '/lyrics-artist-bios', label: 'Lyrics & Artist Bios', content: lyricsArtistBiosMd },
       { path: '/discovery', label: 'Discovery & Smart Radio', content: discoveryMd },
+      { path: '/recap', label: 'Recap & Listening Stats', content: recapMd },
     ],
   },
   {
@@ -83,6 +86,7 @@ export const categories = [
           { path: '/building-from-source', label: 'Building from Source', content: buildingMd },
           { path: '/settings-themes-internals', label: 'Settings & Themes Internals', content: settingsThemesInternalsMd },
           { path: '/desktop-backend-internals', label: 'Backend Internals', content: desktopBackendInternalsMd },
+          { path: '/error-handling-internals', label: 'Error Handling Internals', content: errorHandlingInternalsMd },
         ],
         subcategories: [
           {

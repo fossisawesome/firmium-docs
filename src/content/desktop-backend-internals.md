@@ -1,289 +1,186 @@
 # Desktop Backend Internals
 
-This page documents the `src-tauri/src/commands/` modules that aren't covered by
-[Settings & Themes Internals](/settings-themes-internals): auth token generation, the
-on-disk cover art cache, the lyrics lookup cascade, and the Subsonic JSON mappers. All of
-these are plain `#[tauri::command]` functions invoked from the frontend via `tauriInvoke()`
-(`src/lib/tauri.ts`).
+This page covers the internal structure of the Firmium desktop app: how backend modules are wired at the crate root, how the `EventBus`/`BackendEvent` model works, how `AppState` is shared, and how `iced::Task::perform` drives every backend call from the UI. For a higher-level map of the whole app, see [Desktop Architecture](/architecture-overview).
 
-## Auth token generation (`commands/auth.rs`)
+## Crate structure and module mounting
 
-OpenSubsonic uses token auth: instead of sending a plaintext password, the client sends a
-salt and `md5(password + salt)`. To keep MD5 and the plaintext password out of the JS
-layer, this is computed entirely on the Rust side.
+The desktop app is a single Rust crate. The iced UI lives under `src/`; the backend lives under `backend/`, a sibling directory to `src/`. Because they share one crate, `src/main.rs` mounts every backend module at the crate root with `#[path]` attributes:
 
-[`generate_auth_params(username, password)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/auth.rs) does:
+```rust
+#[path = "../backend/events.rs"]    mod events;
+#[path = "../backend/state.rs"]     mod state;
+#[path = "../backend/audio/mod.rs"] mod audio;
+#[path = "../backend/commands/mod.rs"] mod commands;
+// ... repeated for init, queue_state, queue_manager, visualizer, etc.
+```
 
-1. Generates a random 8-byte salt (`rand::random::<[u8; 8]>()`), hex-encoded to 16 chars.
-2. Computes `token = md5(password + salt)` via the `md5` crate.
-3. Returns a JSON object with the params the Subsonic API expects: `u` (username), `t`
-   (token), `s` (salt), `v` (`"1.16.1"`), `c` (`"firmium"`), `f` (`"json"`).
+Code inside `backend/` can reference `crate::events::EventBus`, `crate::commands::subsonic::get_albums`, and so on without any re-export indirection. `src/app.rs` uses the same `crate::` paths. The full mounting order is in `src/main.rs`.
 
-The frontend calls this once during login/connection setup and appends the returned
-params to every API request. `src-tauri/src/state.rs`'s `set_connection` stores the
-resulting params (not the plaintext password) in `AppState`. Unit tests in `auth.rs`
-verify the token matches `md5(password + returned_salt)` and that the salt is random
-per call.
+`main()` creates a Tokio runtime, enters it, then calls `iced::application(boot, App::update, App::view)`. The `boot` function calls `Backend::new()` and returns the initial `App` state plus an auto-login task.
 
-## Cover art cache (`commands/cover_cache.rs`)
+## Backend bootstrap (`backend/init.rs`)
 
-Cover art is cached on disk under `app_cache_dir()/covers/` (e.g.
-`~/.cache/com.fossisawesome.firmium/covers/` on Linux), with a fixed 200MB budget
-(`MAX_CACHE_BYTES`).
+`Backend::new()` is called once inside the entered Tokio runtime. It builds every shared handle in order:
 
-- [`get_cover_art(cover_id, url)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/cover_cache.rs):
-  - Sanitizes `cover_id` to a filesystem-safe name (`sanitize_cover_id` - non-alphanumeric
-    chars other than `-`, `_`, `.` become `_`).
-  - `find_cached()` checks for an existing file with that prefix (any extension) and
-    returns its path immediately if found.
-  - Otherwise downloads `url` via a shared `reqwest::Client` (lazily created with
-    `OnceLock`), picks an extension from the response `Content-Type`
-    (`extension_for_content_type` - png/webp/gif/jpg), writes the file, then calls
-    `evict_if_needed()`.
-  - Returns a filesystem path string. The frontend (`src/lib/coverCache.ts`) converts it
-    with Tauri's `convertFileSrc()` for use in an `<img src>`.
-- `evict_if_needed(dir)`: sums the size of all files in the cache dir; if over
-  `MAX_CACHE_BYTES`, sorts files by `mtime` ascending and deletes the oldest until back
-  under budget. This is the only place the cache is pruned - it runs after every new
-  download, not on a timer.
-- [`clear_cover_cache()`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/cover_cache.rs):
-  removes the whole `covers/` directory (used by Settings > Debug > Wipe Cache).
+1. Creates `EventBus` (the broadcast sender).
+2. Creates `Arc<AudioPlayer>` (opens the default cpal output device, spawns background tasks).
+3. Creates `Arc<AppState>` (wraps an async `reqwest::Client` and a `parking_lot::RwLock<ConnectionState>`).
+4. Creates `Arc<QueueState>` (the authoritative queue and playback settings).
+5. Optionally creates `Arc<PlayHistory>` (SQLite-backed play history; initialization failures are non-fatal and yield `None`).
+6. Calls `queue_manager::start(...)` to launch the background task that reacts to playback events.
 
-## Lyrics cascade (`commands/lyrics.rs` + `commands/subsonic.rs`)
+The resulting `Backend` struct is stored on the `App` struct in `src/app.rs` and accessed by `update()` when dispatching backend calls.
 
-`get_song_lyrics()` in `subsonic.rs` is the entry point the frontend calls
-(`src/lib/lyrics.ts`). It tries, in order:
+## Event bus (`backend/events.rs`)
 
-1. **Structured lyrics** - OpenSubsonic `getLyricsBySongId`, which can return
-   time-synced lines directly.
-2. **Legacy lyrics** - the older `getLyrics` endpoint (artist/title based, plain text
-   only).
-3. **LRCLIB fallback** - [`fetch_lrclib_lyrics(artist, title, duration)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/lyrics.rs),
-   only reached if the server returned nothing usable.
+`EventBus` wraps a `tokio::sync::broadcast::Sender<BackendEvent>` with capacity 1024. `bus.emit(event)` broadcasts to all active receivers; `bus.subscribe()` returns an independent `broadcast::Receiver`.
 
-`fetch_lrclib_lyrics`:
-- Normalizes the artist/title via `normalize_lrclib_query()` before querying
-  `https://lrclib.net/api/get`: `strip_qualifier_suffix()` removes trailing
-  `(Live)`/`[Remix]`/etc. qualifiers from the title, `strip_feat_suffix()` removes
-  `" - feat. ..."` suffixes, and `primary_artist()` keeps only the first artist when the
-  artist string contains `feat`/`ft`/`featuring`/`/`.
-- A 404 from LRCLIB returns `Ok(None)` (no lyrics found, not an error).
-- If `instrumental` is true, returns a single line `"♪ Instrumental ♪"` (unsynced).
-- Prefers `synced_lyrics` (parsed via `parse_lrc_lines`) over `plain_lyrics`.
+`BackendEvent` variants:
 
-`parse_lrc_lines` / `parse_lrc_line` parse standard LRC `[mm:ss.xx]text` lines into
-`LyricLine { start: i64 (ms), value: String }`, sorted by `start`. Lines that don't match
-the `[mm:ss.xx]` or `[mm:ss.xxx]` format are silently skipped. `LyricsResult { lines,
-synced }` is the shape returned to the frontend; `synced: true` only when timestamped
-lines were found, which drives whether `LyricsPanel.svelte` shows karaoke-style
-highlighting.
+- `PlaybackStateChanged { player_id, state, audio_info }`: playback transitioned state; `audio_info` carries the native sample rate and channel count when state is `Playing`.
+- `PlaybackPosition { player_id, position, duration }`: fired roughly every 250 ms by the decode feeder; drives the scrubber in the player bar.
+- `PlaybackFinished { player_id }`: the decode feeder exhausted the stream; triggers track advance in the queue manager.
+- `QueueStateChanged(QueueStateSnapshot)`: the queue was mutated (new track, reorder, clear); the UI subscription updates the queue panel.
+- `QueueExhausted(Song)`: the queue ran out; the seed song is forwarded for Smart Radio continuation.
+- `SessionExpired`: emitted by `commands/subsonic.rs` on HTTP 401 or OpenSubsonic error codes 40 or 41; the UI subscription routes it to the login overlay.
 
-## OpenSubsonic extension detection and playback reporting (`commands/subsonic.rs`)
+Two consumers subscribe to the bus at startup: `queue_manager::start` (gapless preload, crossfade, scrobbling) and `App::subscription` in `src/app.rs` (bridges events into `Message::Backend(BackendEvent)` for the iced update loop).
 
-Every Subsonic response includes an `openSubsonicExtensions` array naming the extensions
-the server supports. `subsonic_request()` captures this array into
-`AppState.connection.open_subsonic_extensions` on every call. The frontend fetches the
-current list once after login via
-[`get_open_subsonic_extensions()`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
-and stores it in `openSubsonicExtensions` (`src/lib/stores.ts`), which drives derived
-stores like `hasSonicSimilarity`. `has_extension(state, name)` is the Rust-side helper
-used by the commands below to check whether a given extension is advertised.
+## Connection state (`backend/state.rs`)
 
-- [`report_playback(media_id, position_ms, playback_state)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
-  implements the `playbackReport` extension's `reportPlayback` endpoint. It's a no-op
-  (and never makes a request) unless the server advertises `playbackReport`. Fire-and-forget
-  via `tokio::spawn`, same pattern as `scrobble`. Called from `src/lib/playback.ts` (track
-  start/finish) and `src/lib/playerControls.ts` (pause/resume) with `state` one of
-  `starting`/`playing`/`paused`/`stopped`.
-- [`save_play_queue(ids, current, position_ms)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
-  and `get_play_queue()` implement the Play Queue API's `savePlayQueue`/`getPlayQueue`
-  endpoints, used for cross-device "continue playback". `save_play_queue` is
-  fire-and-forget via `tokio::spawn`, same pattern as `scrobble`/`report_playback`; `ids`
-  is sent as repeated `id` params, `current` is the playing track's id, and `position_ms`
-  is the playback position. `get_play_queue` is async and returns
-  `Option<RemotePlayQueue>` (`{ entries: Vec<Song>, current: Option<String>, position_ms:
-  Option<i64>, changed_by: Option<String> }`, mapped via `map_songs()`), or `None` if the
-  server has no saved queue. Called from `src/lib/playback.ts`
-  (`schedulePlayQueueSave()`, debounced, on track start/pause/~30s intervals) and
-  `src/App.svelte` (`checkRemotePlayQueue()` after login, surfaced via
-  `ResumeQueuePrompt.svelte`).
-- [`get_sonic_similar_tracks(id, count)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
-  and `find_sonic_path(start_song_id, end_song_id, count)` implement the `sonicSimilarity`
-  extension's `getSonicSimilarTracks`/`findSonicPath` endpoints. Both return
-  `Err("sonicSimilarity not supported")` if the extension isn't advertised, so the
-  frontend can fall back to `get_similar_tracks_fallback`. The raw response's `sonicMatch`
-  array (`{entry, similarity}`) is mapped via `map_similar_matches()` in
-  `commands/mappers.rs` into `SimilarMatch { song, similarity }`. Only
-  `get_sonic_similar_tracks` has a UI consumer (`SimilarTracksPanel.svelte`, opened from
-  `PlayerBar.svelte`); `find_sonic_path` is registered but currently unused.
-- [`get_similar_tracks_fallback(song_id, artist_id, genre, count)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/subsonic.rs)
-  is used by `PlayerBar.svelte` when `hasSonicSimilarity` is false. It combines two
-  sources, each tagged with a synthetic `similarity` so the existing UI works unchanged:
-  genre matches via `getSongsByGenre` (similarity `0.55`), and similar-artist matches via
-  `getArtistInfo2`'s `similarArtist[]` (Last.fm-backed, server-side) followed by
-  `getTopSongs` per similar artist (similarity `0.45`). Results are deduplicated by song
-  ID (via `Song::id()`, also excluding the current track), shuffled, and truncated to
-  `count` (default 10). Returns `Ok(vec![])` if nothing is found rather than an error.
-  Requires the new `Song.artistId` field (`mappers.rs`, populated from `artistId` in
-  `map_song()`), which is also exposed to the frontend (`Song.artistId?` in
-  `tauri-commands.ts`) so `PlayerBar.svelte` can pass the current track's artist ID.
+`AppState` fields:
 
-## Subsonic data mappers (`commands/mappers.rs`)
+- `connection: RwLock<ConnectionState>`: server URL, username, password (in memory only), and the set of detected `openSubsonicExtensions`.
+- `http: reqwest::Client`: shared async HTTP client used by `commands/subsonic.rs` and `commands/lyrics.rs`. Separate from `AudioPlayer`'s `reqwest::blocking::Client`, which is dedicated to the decode-feeder thread.
+- `local_library: RwLock<Option<LocalLibraryCache>>`: cached scan of `~/Music/Firmium`; `None` until first scan; invalidated after downloads or imports.
+- `bus: EventBus`: handle for emitting `SessionExpired` from within the OpenSubsonic client.
 
-`map_albums()`, `map_artists()`, `map_songs()` convert raw Subsonic JSON
-(`Vec<serde_json::Value>`) into typed `Album`/`Artist`/`Song` structs (serialized to JS in
-camelCase). Doing this in Rust keeps the JSON-shape-handling and release-type heuristics
-out of the frontend.
+`AppState::new(bus)` is the only constructor. The `Arc<AppState>` is cloned into every backend command that needs server access.
 
-- `map_album` pulls `name`/`title`, `displayArtist`/`artist`, `coverArt`, etc., and calls
-  `infer_release_type()` for the `releaseType` field.
-- `infer_release_type(album_json)`:
-  1. If the server provides `releaseTypes[]` (OpenSubsonic extension) or a `releaseType`
-     string, lowercases and returns that directly.
-  2. Otherwise inspects the album title for `" - single"`/`"(single)"` or `" - ep"`/`"(ep)"`
-     suffixes.
-  3. Otherwise falls back to `songCount`: 1-2 tracks -> `"single"`, 3-6 -> `"ep"`, else
-     `"album"`.
-- `map_song` includes `format_track_info()`, which builds the "FLAC · 44.1 kHz · 16-bit ·
-  1234 kbps"-style string shown in the player bar from `suffix`/`samplingRate`/
-  `bitDepth`/`bitRate`.
+## Calling backend functions from the UI (`src/app.rs`)
 
-The Android app has its own, differently-shaped release-type inference
-(`ApiClient.kt::inferReleaseType()` + `AlbumListScreen.kt::effectiveType()`) - see
-"Known Cross-Platform Divergences" in the root `CLAUDE.md` before changing either.
+All UI state lives on `App`. `update(message) -> Task<Message>` handles every message variant.
 
-## Local library (`commands/local_library.rs`)
+For async backend calls, `update` returns `iced::Task::perform(future, Message::SomeDone)`:
 
-Scans `~/Music/Firmium` (via `local_library_dir()`, also used by `downloads.rs`) and maps
-the audio files it finds into the same `Album`/`Artist`/`Song` shapes as
-`commands/mappers.rs`, so the frontend's `LocalApi` (`src/lib/localApi.ts`) can be used
-interchangeably with `Api` via `src/lib/dataSource.ts`.
+```rust
+Task::perform(
+    commands::subsonic::get_albums(Arc::clone(&self.backend.app_state), offset),
+    Message::AlbumsFetched,
+)
+```
 
-- `walk(dir, &mut Vec<RawTrack>)` recursively collects files matching `AUDIO_EXTENSIONS`
-  (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`, `alac`, `aiff`). `read_track(path)`
-  reads tags via the `lofty` crate, falling back to the filename/parent directory name
-  for a missing title/album.
-- The scan result is cached in `AppState.local_library` (`RwLock<Option<...>>`).
-  `invalidate_local_library(state)` clears the cache, forcing a re-scan on next access -
-  called after downloads (`commands/downloads.rs`) and imports complete.
-- Local ids are `local:<md5>` (of a relative path for songs, or a lowercased
-  artist/album name for artists/albums). `get_local_track_path(id)` and
-  `get_local_cover_art(id)` resolve these back to filesystem paths for playback and
-  cover art (the latter extracts embedded pictures via `lofty` and caches them).
-- `get_local_albums`/`get_local_artists`/`get_local_album_tracks`/
-  `get_local_artist_details`/`search_local`/`get_local_recent_albums`/
-  `get_local_random_albums`/`get_local_newest_albums`/`get_local_genres_list` mirror the
-  equivalent `subsonic.rs` commands' return shapes.
-- [`import_local_files(paths)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/local_library.rs)
-  is called when files/folders are dropped onto the window (`App.svelte`'s
-  `onDragDropEvent` handler, via `src/lib/localApi.ts::importLocalFiles`). For each path,
-  directories are walked with `walk()`; each audio file is read with `read_track()` and
-  copied (via `std::fs::copy` inside `spawn_blocking`) to
-  `<library>/<AlbumArtist>/<Album>/<filename>`, with `unique_dest()` appending ` (1)`,
-  ` (2)`, etc. on name collisions. Returns the number of files imported and invalidates
-  the scan cache if any were copied.
-- `prewarm_local_library()` triggers an eager scan on startup (called fire-and-forget
-  from `App.svelte`'s `onMount`) so `find_local_match` is instant when the user first
-  plays a track, even in server mode.
-- `find_local_match(title, artist, album)` searches `all_songs` case-insensitively for
-  a track matching `title` and (`album` or `artist`), returning its absolute file path
-  or `null`. Called by `src/lib/playback.ts::streamUrlFor()` to prefer a local copy over
-  a server stream, and by `src/lib/localApi.ts`.
-- `LocalLibraryCache::has_local_match(title, album)` is an internal method used by
-  `download_track` to skip re-downloading a track that is already present on disk.
+The future runs on the Tokio runtime. When it completes, `Message::AlbumsFetched(result)` re-enters `update`. Async fns in `backend/commands/` take owned `Arc<_>` handles so the future is `'static`; sync fns take `&_` and are called inline in `update`.
 
-## Downloads (`commands/downloads.rs`)
+`App::subscription` returns an `iced::Subscription` that reads from an `EventBus` receiver and maps each `BackendEvent` to `Message::Backend(BackendEvent)`, feeding audio and queue state into the update loop.
 
-[`download_track(song_id, format, album_artist, album, title, track_number, suffix)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/downloads.rs)
-and `download_album(album_id, format)` save tracks from the connected server into
-`~/Music/Firmium`, using the same folder layout as `import_local_files`:
-`<AlbumArtist>/<Album>/<TrackNum> - <Title>.<ext>` (`sanitize_path_component()` strips
-filesystem-unsafe characters from each component).
+## Commands (`backend/commands/`)
 
-- Builds a `stream` request with the standard auth params plus `format` - the frontend
-  passes `"raw"` for "Original" (the source file, unmodified) or `"mp3"`/`"flac"`/`"wav"`/
-  `"opus"` for a server-side transcode.
-- If the response `Content-Type` is `application/json` (a Subsonic error response rather
-  than audio), parses the OpenSubsonic error message and returns it as an `Err` instead
-  of writing a file.
-- For "Original" downloads, the file extension comes from the track's `suffix` field
-  (falling back to `mp3`); otherwise it's the requested format.
-- Writes the file via `spawn_blocking` (`std::fs::create_dir_all` + `std::fs::write`),
-  then calls `invalidate_local_library(&state)` so the new file appears in the local
-  library view.
-- Before issuing any HTTP request, `download_track` checks whether the track is already
-  in the local library via `LocalLibraryCache::has_local_match(title, album)` (title and
-  album name, case-insensitive). If it matches, the download returns immediately without
-  touching the network.
-- `download_album` fetches the album's tracks via `get_album_tracks()` and calls
-  `download_track` for each one in sequence.
+`backend/commands/mod.rs` declares each submodule. These are plain Rust functions with no Tauri attribute macros and no IPC serialization layer:
 
-## Equalizer DSP (`audio/eq.rs`, `commands/equalizer.rs`)
+- `auth.rs`: `generate_auth_params(username, password)` for MD5 token generation (random 8-byte salt, `token = md5(password + salt)`).
+- `credentials.rs`: `save_password`, `get_password`, `delete_password` via the `keyring` crate (libsecret on Linux, Windows Credential Manager on Windows).
+- `subsonic.rs`: `set_connection`, `validate_connection`, OpenSubsonic reads (albums, artists, search, genres, playlists), `scrobble`, `save_play_queue`/`get_play_queue`, `get_song_lyrics` (structured then legacy then LRCLIB cascade), `get_sonic_similar_tracks`. The internal `subsonic_request` emits `BackendEvent::SessionExpired` on 401 or error codes 40 and 41.
+- `mappers.rs`: `map_albums`, `map_artists`, `map_songs` convert `serde_json::Value` to typed `Album`/`Artist`/`Song` structs; `infer_release_type` and `format_track_info` run here to keep JSON-shape logic out of the UI.
+- `lyrics.rs`: `parse_lrc`, `fetch_lrclib_lyrics` for LRC line parsing and the LRCLIB HTTP fallback used by `get_song_lyrics`.
+- `cover_cache.rs`: `get_cover_art`, `clear_cover_cache` managing a disk cache under `app_cache_dir()/covers/` (200 MB budget, mtime-based LRU eviction). The UI loads cached paths into an `iced::widget::image::Handle`.
+- `cover_colors.rs`: `extract_cover_colors`, `extract_cover_colors_from_path` for dominant-color extraction (used as the visualizer palette).
+- `queue.rs`: queue mutation functions (`set_queue`, `shuffle_and_play`, `play_queue_index`, and others).
+- `queue_manager.rs` (mounted as a peer module, not under `commands/`): the background task that drains the bus for crossfade timing, gapless preload, track advance, and scrobbling.
+- `playback.rs`: thin wrappers over `AudioPlayer`: `play_stream`, `preload_stream`, pause/resume/stop, `seek_position`, `set_volume`, `crossfade_to`, `list_audio_devices`.
+- `equalizer.rs`: `get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`. Profiles persist in `eq.toml` under the app config directory.
+- `local_library.rs`: scans `~/Music/Firmium`, maps audio files to the same `Album`/`Artist`/`Song` shapes as `mappers.rs`. `import_local_files` handles drag-and-drop. `find_local_match` is used by `playback.rs` to prefer a local copy over a server stream.
+- `downloads.rs`: `download_track`, `download_album` pull streams from the server into the local library folder.
+- `stats.rs`: play-history aggregation for the Recap view and CSV export.
+- `app_info.rs`: `get_app_version`.
+- `listenbrainz.rs`: ListenBrainz scrobbling.
+- `themes.rs`: `list_themes` reads `.toml` theme files from the config directory.
 
-The equalizer is a hand-rolled biquad IIR chain (no external DSP crate). `audio/eq.rs`
-implements RBJ "Audio EQ Cookbook" coefficients for low-shelf, peaking, and high-shelf
-bands (`Biquad`, transposed direct form II). An `EqChain` holds one biquad per band per
-channel, since filter state cannot be shared across interleaved channels, and exposes
-`process_interleaved()`.
+## Audio engine (`backend/audio/`)
 
-Live state is shared via `EqShared { generation: AtomicU64, config: Mutex<EqRuntimeConfig> }`,
-stored as `AudioPlayer.eq: Arc<EqShared>` and constructed in `AudioPlayer::new()` from the
-active profile resolved by `commands::equalizer::resolve_runtime()`. The decode feeder
-(`audio/session.rs::spawn_decode_feeder`) applies the chain **between ReplayGain and the
-visualizer tap**, so the visualizer reflects the EQ'd signal. Each feeder caches the last
-seen `generation` and rebuilds its `EqChain` (at the session's native sample rate) only when
-the generation changes — a cheap atomic read per chunk. When **Bit-Perfect** is Strict the
-feeder skips the EQ entirely, keeping the signal bit-exact.
+The audio engine uses `symphonia` 0.5 for decoding and `cpal` 0.17 for device I/O.
 
-`commands/equalizer.rs` owns all file IO. Profiles live in `eq.toml` under the app config dir
-(same `toml` crate as themes), with `[settings] enabled`, `[profiles.NAME]` (type + bands)
-and `[devices."NAME"] active_profile` tables. Commands — `get_eq_state`, `save_eq_profile`,
-`delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled` — mutate the
-file and then call `reapply()`, which re-resolves the default device's active profile and
-pushes it into `AudioPlayer.set_eq_runtime()` (bumping the generation). Graphic profiles map
-the first/last bands to shelves and the rest to peaking filters; parametric profiles are all
-peaking with explicit Q.
+### `AudioPlayer` (`audio/mod.rs`)
 
-## Audio visualizer (`visualizer.rs`)
+`AudioPlayer` manages session lifecycle. Key fields:
 
-The visualizer taps each decoded chunk inside the decode-feeder
-(`audio/session.rs::spawn_decode_feeder`), just before the 25ms fade-in is
-applied: `visualizer::process_chunk()` downmixes the interleaved samples to
-mono (summing one sample per channel and dividing by the channel count) and
-pushes them into a shared ring buffer (`VisualizerState.buffer`, capacity 4096
-samples) guarded by a `parking_lot::Mutex`.
+- `sessions: SessionMap` (`Arc<RwLock<HashMap<PlayerId, Arc<Session>>>>`): each playback session keyed by a UUID string.
+- `output: RwLock<OutputHandle>`: the live cpal stream and device handle.
+- `http_client: reqwest::blocking::Client`: dedicated blocking client for decode-feeder threads.
+- `bus: EventBus`: for emitting `PlaybackStateChanged`, `PlaybackPosition`, and `PlaybackFinished`.
+- `crossfade_in_progress: AtomicBool`: stream reopens are deferred while a crossfade volume ramp is running.
+- `visualizer: Arc<VisualizerState>`: shared with the decode feeder and the iced canvas in `src/viz.rs`.
+- `bit_perfect_mode: Mutex<String>`: `"off"`, `"relaxed"`, or `"strict"`; controls whether the output is reopened at each track's native sample rate.
+- `eq: Arc<EqShared>`: live-updatable EQ band config shared with every decode feeder.
 
-`VisualizerState` is created once in `AudioPlayer::new()` and stored as
-`AudioPlayer.visualizer: Arc<VisualizerState>`. An `AtomicBool` (`enabled`)
-gates both the tap (it skips pushing samples when disabled) and the analysis
-task below, so the visualizer has no measurable cost when its panel is closed.
+`reopen_stream_if_needed()` reopens the cpal stream at the primary session's sample rate when bit-perfect mode is `"relaxed"` or `"strict"`, deferred when `crossfade_in_progress` is set.
 
-[`spawn_analysis_task(app_handle, state)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/visualizer.rs)
-is spawned once via `tauri::async_runtime::spawn` and runs for the app's
-lifetime. Every 50ms, while enabled, it:
+### `StreamingReader` (`audio/streaming_reader.rs`)
 
-- Takes the most recent 1024 samples from the ring buffer.
-- Applies a Hann window and runs a forward FFT (`rustfft::FftPlanner`).
-- Computes `bass` as the average magnitude of the bins below ~250Hz, normalized to 0..1.
-- Groups the magnitude spectrum into 24 log-spaced `bars`, normalized to 0..1
-  (`compute_bars()`).
-- Emits `firmium:audio-analysis` with `{ bass, bars }`.
+`StreamingReader` implements `Read + Seek` over an HTTP response body, buffering the full stream locally. This keeps the HTTP connection open for the track's full duration so Subsonic/Navidrome sees "Now Playing" status throughout playback rather than only during the initial download. `VecSource` and `FileSource` are `MediaSource` wrappers for the seek-rebuild path and local file playback respectively.
 
-[`set_visualizer_enabled(enabled)`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/commands/playback.rs)
-toggles `VisualizerState.enabled` (and clears the ring buffer on disable).
-Called from `src/components/VisualizerPanel.svelte` when the panel opens/closes.
-The frontend (`src/components/VisualizerPanel.svelte`) listens for
-`firmium:audio-analysis` and drives a `requestAnimationFrame` loop at 60 fps.
-In orb mode it renders an NCS-style animated scene: a multi-layer radial-gradient
-glow core, three staggered expanding rings, four orbiting energy wisps, and a
-particle field, all in colors extracted from the current track's cover art via
-`extractOrbPalette()` in `src/lib/coverColor.ts` (4-bit histogram quantization,
-top-3 most-vibrant distinct buckets). The `bass` value drives orb scale (up to
-+55%) and ring opacity. In bars mode it renders 24 log-spaced frequency bars in
-the palette's primary color. `visualizerMode` (orb/bars) is persisted in
-`src/lib/stores.ts` and toggled from the panel's header buttons.
+### `DecoderHandle` (`audio/decoder.rs`)
+
+Wraps a `symphonia` `FormatReader` and `Decoder`. Exposes `next_samples() -> Vec<f32>` (interleaved f32), `seek(secs)`, and accessors for `sample_rate`, `channels`, and optional duration. Defaults to 48000 Hz if the container does not report a sample rate.
+
+### `Session` and the decode feeder (`audio/session.rs`)
+
+`Session` holds:
+
+- `ring: Mutex<VecDeque<f32>>`: interleaved f32 ring buffer (`RING_HIGH_WATER` = 48000 samples, roughly 0.5 s at 48 kHz stereo).
+- `volume: Mutex<f32>`, `replay_gain_factor: AtomicU32`: per-session gain applied in the mixing callback.
+- `playing: AtomicBool`: whether the cpal callback drains this session.
+
+`spawn_decode_feeder(session, decoder, ...)` runs the blocking decode loop on `tokio::task::spawn_blocking`. Per decoded chunk, in order:
+
+1. Applies the ReplayGain multiplier.
+2. Applies the EQ chain (`EqChain::process_interleaved`), skipped entirely when bit-perfect mode is `"strict"`.
+3. Taps the visualizer (`visualizer::process_chunk`).
+4. Applies the 25 ms fade-in ramp.
+5. Pushes samples into `session.ring`.
+
+The feeder checks `EqShared.generation` (an `AtomicU64`) each chunk; it rebuilds its `EqChain` only when the generation changes, so live EQ edits are cheap (one atomic read per chunk in the steady state).
+
+### Mixing callback (`audio/output.rs`)
+
+`mix_into` runs in the cpal realtime callback. For each active session it reads from `session.ring`, applies per-session volume, adapts channel count (mono-to-stereo or stereo-to-mono), and runs linear-interpolation resampling if the session's native rate does not match the currently open stream's rate. When rates match, the resampler step is exactly 1.0 and degenerates to a passthrough with no interpolation overhead.
+
+## Visualizer (`backend/visualizer.rs`)
+
+`VisualizerState` is shared between the decode feeder, a background analysis task, and the iced canvas in `src/viz.rs`.
+
+Key fields:
+
+- `enabled: AtomicBool`: gates both the sample tap and the analysis task. No overhead when the visualizer panel is closed.
+- `buffer: Mutex<VecDeque<f32>>`: mono ring buffer, capacity 8192 samples.
+- `smooth_bars`, `smooth_bass`, `smooth_mid`, `smooth_treble`, and corresponding `last_*` snapshots: the analysis results read by the canvas.
+- `dirty: AtomicBool`: set after each analysis frame; cleared by the renderer after consuming, preventing redundant redraws.
+
+`process_chunk(samples, channels, state)` is called inline from the decode feeder. It downmixes interleaved samples to mono (sum one sample per channel, divide by channel count) and pushes them into `buffer`.
+
+A background analysis task spawned once from `AudioPlayer::new` wakes every 16 ms while `enabled` is true:
+
+1. Takes the most recent 2048 samples from `buffer`.
+2. Applies a Hann window and runs a forward FFT via `rustfft::FftPlanner`.
+3. Computes `bass` as peak magnitude in the 40-250 Hz bins, normalized to 0..1.
+4. Groups the magnitude spectrum into 120 log-spaced bars (40 Hz to 18 kHz, peak per band), normalized to 0..1.
+5. Downsamples the window to 120 points for the oscilloscope waveform (`WAVE_POINTS = 120`).
+6. Applies per-value smoothing (fast attack, slow decay) and stores the results.
+
+`src/viz.rs` implements the iced `canvas::Program` for bars, oscilloscope, and orb modes, reading the latest snapshot via `VisualizerState` getters. All rendering is CPU-side inside iced's canvas; there is no separate GPU compute path for the visualizer.
+
+## Equalizer DSP (`backend/audio/eq.rs`, `backend/commands/equalizer.rs`)
+
+The EQ is a biquad IIR chain using RBJ Audio EQ Cookbook coefficients. `Biquad` uses transposed direct form II. `EqChain` holds one biquad per band per channel (filter state cannot be shared across interleaved channels) and exposes `process_interleaved()`.
+
+`EqShared` holds:
+
+- `generation: AtomicU64`: incremented each time the EQ config changes; decode feeders rebuild their `EqChain` only when this changes.
+- `config: Mutex<EqRuntimeConfig>`: the active band configuration.
+
+`commands/equalizer.rs` owns all file I/O. Profiles persist in `eq.toml` under the app config directory (same `toml` crate as themes), with `[settings] enabled`, `[profiles.NAME]`, and `[devices."NAME"] active_profile` tables. Each of the six commands (`get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`) mutates the file then calls `reapply()`, which re-resolves the default device's active profile and calls `AudioPlayer::set_eq_runtime()` to bump the generation. Graphic profiles map the first and last bands to low/high shelves and the rest to peaking filters; parametric profiles are all peaking with explicit Q values.
 
 ## See also
 
-- [Settings & Themes Internals](/settings-themes-internals)
 - [Desktop Architecture](/architecture-overview)
+- [Settings & Themes Internals](/settings-themes-internals)

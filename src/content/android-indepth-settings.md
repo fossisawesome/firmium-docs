@@ -7,8 +7,15 @@ category list that drills down into per-category panels, mirroring the desktop a
 ## Settings (`ui/screens/SettingsScreen.kt`)
 
 - **Appearance**
-  - **Color Theme** — dropdown listing `ALL_THEMES`; selecting one applies its colors via
-    `LocalFirmiumColors` immediately.
+  - **Color Theme** — dropdown listing `allThemes(context)` (built-in `ALL_THEMES` plus
+    imported themes); selecting one applies its colors via `LocalFirmiumColors`
+    immediately.
+  - **Import theme** — `ActivityResultContracts.GetContent()` file picker. The picked
+    file is validated and copied by `importThemeFromUri()` into `filesDir/themes/`
+    (`ui/theme/ThemeImport.kt`, hand-rolled TOML parser mirroring `TomlEqParser`); a Toast
+    reports success or the error. Imported themes show a trash icon that calls
+    `deleteImportedTheme()`; built-ins don't. Rejected when the file is over 50 KB, isn't
+    valid TOML, or has no `name`; a duplicate name overwrites silently.
 - **Playback**
   - **Bit-Perfect Audio** — segmented selector: Off / Relaxed / Strict.
     Stored as `"bit_perfect_mode"` in DataStore (`AppPreferences.BIT_PERFECT_MODE`).
@@ -24,8 +31,10 @@ category list that drills down into per-category panels, mirroring the desktop a
       offload scheduling enabled. Hard cuts; no crossfade.
     Enabling Relaxed or Strict sets `crossfadeEnabled = false` in prefs and state.
     Enabling Crossfade sets `bitPerfectMode = "off"`.
-  - **Crossfade** — toggle plus a duration slider when enabled. Greyed out when
-    Bit-Perfect is Relaxed or Strict.
+  - **Crossfade** — toggle plus a duration slider and a curve dropdown (Linear /
+    Logarithmic) when enabled. The curve is stored in `AppPreferences.CROSSFADE_CURVE`
+    and applied by `AudioPlayer.crossfadeTo()`. Greyed out when Bit-Perfect is Relaxed
+    or Strict.
   - **Gapless** — toggle for gapless playback. Greyed out when Bit-Perfect is Relaxed.
 - **Equalizer** (`FirmiumEqualizerPanel` in `SettingsScreen.kt`)
   - Self-contained panel that talks to `AppPreferences` directly (DataStore keys
@@ -45,6 +54,8 @@ category list that drills down into per-category panels, mirroring the desktop a
 - **Downloads**
   - **Download Format** — dropdown (Original/MP3/FLAC/WAV/Opus) for track, album, and
     playlist downloads. See [Settings](/settings#downloads).
+  - **Download entire library** — shown when connected to a server; calls
+    `DownloadManager.startDownloadAll()` and reflects its `downloadAllState` progress.
 - **Services**
   - **External Lyrics (LRCLIB)** — toggle to fetch lyrics from LRCLIB when the server doesn't
     provide them.

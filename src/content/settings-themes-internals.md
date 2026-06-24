@@ -12,6 +12,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 | Theme | `localStorage` `firmium_theme` | `"firmium"` | `Settings.svelte` calls `onapplyTheme()` -> `applyThemeById()` in `App.svelte`. Themes loaded via the `list_themes` Tauri command (`src-tauri/src/lib.rs`) |
 | Crossfade | `localStorage` `firmium_crossfade` | enabled | `setCrossfadeEnabled()` in `src/lib/stores.ts` updates the `crossfadeEnabled` store, used by `crossfadeToNext()` in `src/lib/playback.ts`. Mutually exclusive with Gapless |
 | Crossfade Duration | `localStorage` `firmium_crossfade_duration` | `5` (1-12) | `setCrossfadeDuration()` updates `crossfadeDuration`; passed to the Tauri `crossfade_to()` command as `fade_duration_ms = duration * 1000` |
+| Crossfade Curve | `localStorage` `firmium_crossfade_curve` | `"linear"` | `setCrossfadeCurve()` updates `crossfadeCurve` and calls the `set_crossfade_curve` Tauri command (`src-tauri/src/commands/queue.rs`), which sets `QueueStateInner::crossfade_curve`. `crossfade_to()` (`src-tauri/src/audio/mod.rs`) reads it: `"logarithmic"` maps ramp position `t` to `10^((t-1)*2)` (equal-power approximation), `"linear"` uses `t`. Android: `AppPreferences.CROSSFADE_CURVE` / `PlayerViewModel.setCrossfadeCurve()`, applied in `AudioPlayer.crossfadeTo()`. |
 | Gapless Playback | `localStorage` `firmium_gapless` | enabled | `setGaplessEnabled()` updates `gaplessEnabled`. On track end, if gapless is enabled and crossfade isn't, `playback.ts` calls `preload_stream()` then `play_stream()`. Mutually exclusive with Crossfade |
 | ReplayGain | `localStorage` `firmium_replaygain` | enabled | `setReplayGainEnabled()` updates `replayGainEnabled` and calls the `set_replay_gain_enabled` Tauri command (`src-tauri/src/commands/queue.rs`), which sets `QueueStateInner::replay_gain_enabled`. When disabled, `replay_gain_db` returns `None` at all call sites in `queue.rs` and `queue_manager.rs` (initial play, crossfade, gapless preload). Android: `AppPreferences.REPLAY_GAIN_ENABLED` / `PlayerViewModel.setReplayGainEnabled()`; `replayGainDb` is set to `null` in `playAt()` and `crossfadeToNext()`. |
 | Last.fm Integration | `localStorage` `firmium_lastfm` | disabled | When enabled, reveals API Key/Secret fields |
@@ -20,6 +21,7 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 | Auto-Login | `localStorage` `firmium_auto_login` | enabled | Read on mount in `App.svelte`. If enabled and a password is saved (`firmium_save_pass`), loads the password from the keyring and calls `doConnect()` |
 | Download Format | `localStorage` `firmium_download_format` | `"original"` | `setDownloadFormat()` updates the `downloadFormat` store. Passed as `format` to the `download_track`/`download_album` Tauri commands (`"original"` maps to `format=raw`) - see [Desktop Backend Internals](/desktop-backend-internals) |
 | Bit-Perfect Audio | `localStorage` `firmium_bit_perfect_mode` | `"relaxed"` | `setBitPerfectMode()` in `src/lib/stores.ts` updates the `bitPerfectMode` store and calls the `set_bit_perfect_mode` Tauri command (`src-tauri/src/commands/playback.rs`), which sets `AudioPlayer::bit_perfect_mode`. `"off"` disables stream reopening; `"relaxed"` (default) tries to match native sample rate; `"strict"` does the same but disables crossfade. |
+| Recap weekly auto-show | `localStorage` `firmium_recap_last_shown` (desktop) / DataStore `recap_last_shown` (Android) | unset | Unix-millis timestamp of the last time Recap was surfaced. On app start (`App.svelte` `onMount`; Android `AppNavGraph` `LaunchedEffect`) Recap auto-opens if more than 7 days have passed, then the timestamp is rewritten. |
 | Equalizer | `eq.toml` in the app config dir (not `localStorage`) | disabled / no profiles | `src/components/EqualizerSettings.svelte` drives the EQ via Tauri commands in `src-tauri/src/commands/equalizer.rs` (`get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`). Profiles, per-device active-profile assignments, and the enable flag all live in `eq.toml`; the backend applies them through the biquad chain in `audio/eq.rs` - see [Desktop Backend Internals](/desktop-backend-internals). |
 
 ### Debug actions
@@ -31,9 +33,17 @@ Most settings are defined in [`src/views/Settings.svelte`](https://github.com/fo
 ```
 firmium_server, firmium_user, firmium_save_pass, firmium_auto_login,
 firmium_lrclib, firmium_theme, firmium_decorations, firmium_crossfade,
-firmium_crossfade_duration, firmium_volume, firmium_gapless, firmium_lastfm,
+firmium_crossfade_duration, firmium_crossfade_curve, firmium_volume, firmium_gapless, firmium_lastfm,
 firmium_download_format, firmium_bit_perfect_mode, firmium_replaygain
 ```
+
+## Play history & Recap internals
+
+The Stats Export panel and Firmium Recap read from a local play-history store. No server calls are involved.
+
+- **Desktop** — a SQLite database (`play_history.db` in the Tauri app data dir) managed by [`src-tauri/src/db.rs`](https://github.com/fossisawesome/firmium/blob/main/src-tauri/src/db.rs). A row is written on track completion from `queue_manager.rs` (alongside `fire_scrobble`, via `fire_record_play`), so a play is recorded at the same moment it scrobbles. The `plays` table denormalizes track/artist/album names so Recap renders offline. Aggregation happens in SQL; the frontend calls the `get_recap_stats`, `get_play_history_summary`, and `export_play_history` Tauri commands (`src-tauri/src/commands/stats.rs`). Exports are written to a user-chosen path via the dialog plugin plus the `save_text_file` / `save_binary_file` commands.
+- **Android** — a Room database (`firmium_play_history.db`) in `data/db/` (`PlayEntity`, `PlayDao`, `FirmiumDatabase`, `PlayHistoryRepository`). Rows are inserted from `PlaybackController` at the same completion points that scrobble. The Stats Export panel (`SettingsScreen.kt`) and `RecapScreen.kt` read through `FirmiumApplication.playHistory`; exports and card images share via `FileProvider` (`ShareUtils.kt`).
+- **Recap UI** — desktop overlay `src/components/RecapPanel.svelte` (toggled by the `recapOpen` store), Android route `composable("recap")` → `RecapScreen.kt`. Card images are captured with `html-to-image` (desktop) and a Compose `GraphicsLayer` (Android). Recap has no nav entry; it opens from Stats Export and the weekly auto-show.
 
 ## Theme internals
 

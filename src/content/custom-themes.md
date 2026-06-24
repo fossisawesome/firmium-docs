@@ -64,6 +64,20 @@ timing = "0.15s"
 | `font` | Font family (optional) |
 | `timing` | Speed of theme animations (optional) |
 
+## Importing a theme on Android
+
+The same `.toml` format works on Android. Since you can't drop files into the app's private folder directly, the Android app imports themes through the system file picker instead:
+
+1. In **Settings → Appearance**, tap **Import theme**.
+2. Pick a `.toml` theme file (for example one you authored on desktop).
+3. Firmium validates it and copies it into its private storage; it then appears in the theme list. A snackbar confirms **Theme imported**, or shows the reason it was rejected.
+
+Imported themes show a trash icon in the theme list so you can remove them; built-in themes don't. A file larger than 50 KB, one that isn't valid TOML, or one missing a `name` is rejected. Importing a theme whose name matches an existing imported one overwrites it.
+
+Android reads only the fields it renders (`name`, `color_scheme`, and the `bg`, `surface`, `surface2`, `text`, `muted`, `accent`, `error` colors); `border`, `accent_dim`, `font`, and `timing` are ignored there.
+
+**Desktop and Android parity:** desktop themes live in `~/.config/com.fossisawesome.firmium/themes/` (drop files in directly), while Android imports the same file format via the **Import theme** button.
+
 ## Tips
 
 - Start by copying one of the [built-in themes](https://github.com/fossisawesome/firmium/tree/main/themes) that's close to what you want, and tweak the colors from there.

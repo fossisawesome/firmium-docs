@@ -35,11 +35,14 @@ playback, see [How it Works](/desktop-indepth-overview).
   `SimilarTracksPanel.svelte` with similar tracks for the current track (see
   [Queue & Playback](/queue-playback)).
 - **Visualizer** — toggles the `visualizerOpen` store, opening
-  `VisualizerPanel.svelte` and invoking `set_visualizer_enabled(true)`
-  (`false` on close) so the backend's analysis task only runs while the panel
-  is visible. The panel listens for `firmium:audio-analysis` events and
-  renders either an "orb" or frequency bars on a `<canvas>`, depending on
-  `visualizerMode`. Clicking the canvas cycles orb → bars → oscilloscope (see
+  `VisualizerPanel.svelte`. On open it invokes `set_visualizer_enabled(true)`
+  (gating the backend FFT task) and `start_visualizer_renderer(channel, w, h)`,
+  passing a `tauri::ipc::Channel`; on close it calls `stop_visualizer_renderer`
+  and `set_visualizer_enabled(false)`. Rendering happens in Rust (wgpu) — the
+  panel is a passive 2D `<canvas>` that blits the raw RGBA frames it receives on
+  the channel via `putImageData`. Mode buttons / tapping the canvas cycle
+  orb → bars → oscilloscope (`set_visualizer_mode`), and cover-art colors are
+  forwarded via `set_visualizer_palette` (see
   [Queue & Playback](/queue-playback) and
   [Desktop Backend Internals](/desktop-backend-internals)).
 - **Audio Stats** — toggles the `audioStatsOpen` store, opening

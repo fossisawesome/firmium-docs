@@ -4,9 +4,10 @@ This page covers building Firmium yourself from the source code, for both the Li
 
 ## Prerequisites
 
-- Rust 1.70 or later (`rustup default stable`)
-- Node.js 18 or later
-- System dependencies for your distribution (see [Installing → System Dependencies](/installing#system-dependencies-linux))
+- Rust 1.80 or later (`rustup default stable`)
+- System dependencies for your distribution (see [Installing → System Dependencies](/installing#system-dependencies-linux)) — ALSA, GTK 3 (native file dialogs), libsecret (keyring), plus a Vulkan or OpenGL driver for the GPU-accelerated UI
+
+The desktop app is a native [iced](https://iced.rs) (Rust) application — there is no Node.js / npm step anymore.
 
 ## Steps
 
@@ -15,26 +16,23 @@ This page covers building Firmium yourself from the source code, for both the Li
 git clone https://github.com/fossisawesome/firmium.git
 cd firmium
 
-# Install Node dependencies
-npm install
-
-# Start the development build
-npm run dev:app
+# Run the app (debug build)
+cargo run
 ```
 
-For a release build:
+For an optimized release build:
 
 ```bash
-npm run release
+cargo build --release
 ```
 
-This produces `.deb` and `.rpm` packages under `src-tauri/target/release/bundle/`.
+This produces a single self-contained binary at `target/release/firmium`. Distribution packages are built from that binary (see Packaging below).
 
 ## Packaging
 
 ### Arch Linux (`PKGBUILD`)
 
-The root [`PKGBUILD`](https://github.com/fossisawesome/firmium/blob/main/PKGBUILD) extracts the binary from the Tauri `.deb` bundle (after `npm run release`), then installs it to `/usr/bin/firmium-desktop` along with the desktop file and icons. Build with:
+The root [`PKGBUILD`](https://github.com/fossisawesome/firmium/blob/main/PKGBUILD) builds from source with `cargo build --release`, then installs `target/release/firmium` to `/usr/bin/firmium` along with `packaging/firmium.desktop` and the app icons. Build with:
 
 ```bash
 makepkg -si
@@ -42,11 +40,11 @@ makepkg -si
 
 ### Fedora / RPM (`firmium.spec`)
 
-The [`firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/firmium.spec) (and [`packaging/firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/packaging/firmium.spec)) build via `npm install && npm run release`, then extract the generated `.rpm` from `src-tauri/target/release/bundle/rpm/` using `rpm2cpio`. This is the spec used for the Fedora COPR build.
+The [`firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/firmium.spec) (and [`packaging/firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/packaging/firmium.spec)) build from source with `cargo build --release` and install the resulting `firmium` binary, the desktop entry, and icons. This is the spec used for the Fedora COPR build.
 
 ## Building for Android
 
-The Android app is a native Kotlin + Jetpack Compose app in [`android/`](https://github.com/fossisawesome/firmium/tree/main/android), built with Gradle independently of the desktop Tauri project. See [android/CLAUDE.md](https://github.com/fossisawesome/firmium/blob/main/android/CLAUDE.md) for its architecture.
+The Android app is a native Kotlin + Jetpack Compose app in [`android/`](https://github.com/fossisawesome/firmium/tree/main/android), built with Gradle independently of the desktop iced project. See [android/CLAUDE.md](https://github.com/fossisawesome/firmium/blob/main/android/CLAUDE.md) for its architecture.
 
 ### Additional Prerequisites
 

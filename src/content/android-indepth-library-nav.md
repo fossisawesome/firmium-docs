@@ -15,7 +15,12 @@ ViewModel state pattern and the full route table, see [Android Internals](/andro
 - **`AlbumDetailScreen`** / **`ArtistDetailScreen`** - render `albumDetailState` /
   `artistDetailState`. `onLoad` calls `loadAlbumDetail(id)` / `loadArtistDetail(id)`,
   which short-circuit if the currently-loaded detail already matches `id`. `onPlayAll`
-  calls `playerViewModel.playAt(songs, idx)` directly.
+  calls `playerViewModel.playAt(songs, idx)` directly. `AlbumDetailScreen` shows a left-aligned
+  header (cover, title, artist link, song count, Play/Shuffle) and marks downloaded tracks from
+  `albumDetailState.downloadedSongIds` (and the whole album when `allDownloaded`).
+  `ArtistDetailScreen` shows an image header with Shuffle/Radio, a "Songs" preview from
+  `artistDetailState.topSongs` (loaded via `ApiClient.getTopSongs`), and `AlbumCard` carousels
+  for Albums and Singles & EPs grouped by `effectiveType()`.
 - **`SearchScreen`** - driven by `SearchViewModel.state`; `onQueryChange` calls
   `searchViewModel.onQueryChanged(query)`.
 
@@ -40,7 +45,7 @@ ViewModel state pattern and the full route table, see [Android Internals](/andro
 
 ## Track ratings
 
-`PlayerViewModel.setRating()` calls `ApiClient.setRating()` (fire-and-forget) and updates the current track's `userRating` in `PlaybackController`. `FullScreenPlayer.kt` renders a `StarRating` composable (5 `Icons.Default.Star`/`StarBorder` icons) below the artist name, always visible. Android Auto gets a thumbs up/down toggle via a custom action in `NowPlayingController` (maps to rating 5/0).
+`PlayerViewModel.setRating()` calls `ApiClient.setRating()` (fire-and-forget) and updates the current track's `userRating` in `PlaybackController`. `FullScreenPlayer.kt` renders a `StarRating` composable (5 `Icons.Default.Star`/`StarBorder` icons) in an animated popup over the cover art, shown only on long-press of the art.
 
 ## Filter chips
 

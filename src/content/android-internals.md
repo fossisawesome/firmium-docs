@@ -117,17 +117,31 @@ Routes:
   `removeTrack`) go through a `mutate { ... }` helper that loads the full list, applies
   the change, and re-saves it as JSON - there's no per-playlist storage, the whole list is
   read/written atomically on every change. `addTracks` de-duplicates by song id.
+- **Play history (Room)** (`data/db/`): a Room database (`firmium_play_history.db`) records
+  one row per completed track for the Stats Export panel and Firmium Recap. `PlayEntity` is
+  the `plays` table (track/artist/album ids **and** names denormalized so Recap renders
+  offline, plus genre/bpm/timestamp/duration); `PlayDao` does all aggregation in SQL;
+  `PlayHistoryRepository` assembles the `RecapStats`/`PlayHistorySummary` UI models and builds
+  CSV/JSON exports. Rows are inserted by `PlaybackController` at the same completion points
+  that scrobble. Accessed app-wide via `FirmiumApplication.playHistory`. Recap UI is
+  `ui/screens/RecapScreen.kt` (route `recap`, a `HorizontalPager`); card images are captured
+  with a Compose `GraphicsLayer` and shared through `FileProvider` (`ui/ShareUtils.kt`). The
+  weekly auto-show uses `AppPreferences.recapLastShown` (`recap_last_shown`).
 - **`LocalLibraryRepository`** (`data/local/`): scans `Music/Firmium` via MediaStore
   (falling back to direct file listing on API <29) and maps results into `Album`/
   `Artist`/`Song`, with `local:<id>` ids. `invalidate()` clears its cache, forcing a
   re-scan on next access - called by `DownloadManager` after a download completes.
-- **`DownloadManager`** (`data/download/`): `downloadTrack(song, format, albumArtist)`
+- **`DownloadManager`** (`data/download/`): `downloadTrack(song, format, albumArtist, allowRedownload, invalidateAfter)`
   and `downloadAlbum(album, format)` fetch from `AuthManager.downloadUrl()` (which maps
   `"original"` to `format=raw`) via OkHttp, check the response `Content-Type` for a JSON
   error before treating it as audio, and write the file under `Music/Firmium/<Artist>/<Album>/`
   - via `MediaStore` + `IS_PENDING` on API 29+, or a direct file write +
   `MediaScannerConnection.scanFile()` on API <29 (`WRITE_EXTERNAL_STORAGE` with
-  `maxSdkVersion="28"`).
+  `maxSdkVersion="28"`). `startDownloadAll(api, format)` runs on an internal application scope
+  (so it survives leaving Settings), enumerates every album's tracks, downloads the missing ones,
+  and publishes progress via the `downloadAllState` `StateFlow` observed by the Settings screen.
+  `allowRedownload` lets server-mode downloads overwrite an existing local copy; `invalidateAfter`
+  is set false during bulk downloads so the library is rescanned once at the end.
 
 ## See also
 
