@@ -1,11 +1,11 @@
 # Desktop In-depth: Settings
 
 What each control in the Settings screen does, and where it lives in the native
-iced code. The whole screen is built in `src/app.rs` — there is no Svelte. For how
+iced code. The whole screen is built in `src/app/view/settings.rs` — there is no Svelte. For how
 settings and themes are stored and wired up internally, see
 [Settings & Themes Internals](/settings-themes-internals).
 
-## Layout (`App::settings_view` in `src/app.rs`)
+## Layout (`settings_view` in `src/app/view/settings.rs`)
 
 `settings_view` renders a two-column layout: a fixed 180px category rail on the
 left (a `column` of category buttons driving `Message::SetSettingsCategory`) and,

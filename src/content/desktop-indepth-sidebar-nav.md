@@ -1,22 +1,29 @@
 # Desktop In-depth: Sidebar & Navigation
 
-What each control in `src/components/Sidebar.svelte` does.
+What each control in the sidebar (`App::shell` in `src/app.rs`) does.
 
-## Sidebar & Navigation (`src/components/Sidebar.svelte`)
+## Sidebar & Navigation (`App::shell`)
 
-- **Server label** — shows the connected server's hostname (from the `authServer` store),
-  or "Local Files" when `isAuthed` is false.
-- **Navigation buttons** (Albums, Artists, Search, Playlists, Settings, etc.) — each calls
-  `navToView(view)`, which updates the `activeView` store so `App.svelte` swaps the rendered
-  view. The button for the currently active view is highlighted.
-- **Account icon** — calls `openAccountModal()`, opening `AccountModal.svelte`
-  (`showAccountModal` store) as an overlay over the current view:
-  - If connected, shows the server hostname and a **Disconnect** button
-    (`handleDisconnect()` in `AccountModal.svelte`): destroys the audio bridge, stops
-    position-tracking polling, clears the in-memory cover/list caches, and calls
-    `clearAuth()`. The app falls back to the local library view without a restart.
-  - If not connected, shows the connect form (`Setup.svelte`: server URL, username,
-    password, save-password checkbox), calling `doConnect()` from `App.svelte` on submit.
+- **Account icon** — calls `Message::ToggleAccountSwitcher`, opening `account_switcher_overlay`
+  as a modal `stack` over the current view (see below). There's no separate server-name label
+  in the sidebar itself; the connected server is shown inside that overlay.
+- **Navigation buttons** (`nav_button`) — one per `View`: Home, Albums, Artists, Playlists,
+  Search, Mix, Settings. Each calls `Message::Navigate(target)`, which updates `self.view` so
+  `App::view` swaps the rendered content (`content_view`). The button for the currently active
+  view is highlighted (accent color, bold label, `Message` comparison via `self.view == target`).
+
+## Account switcher overlay (`account_switcher_overlay`)
+
+- If connected (`self.authed`), shows the server hostname (stripped of the `http(s)://`
+  scheme, read from `AppState.connection`) and a **Disconnect** button (`Message::Logout`):
+  clears the connection (`commands::subsonic::set_connection(state, None, None, None)`),
+  clears in-memory albums/search results, and reopens the account switcher so you land back on
+  the connect form. The app doesn't fall back to a local-library view automatically — see
+  [Library Views](/desktop-indepth-library-views) for the (currently nav-unreachable) offline
+  browsing code.
+- If not connected, shows the connect form: server URL, username, password, a **Save
+  Password** checkbox, and **Connect** (`Message::Connect`), which saves credentials to the OS
+  keyring (when the checkbox is on) and calls `commands::subsonic::set_connection`.
 
 ## See also
 

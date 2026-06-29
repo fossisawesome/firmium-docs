@@ -31,7 +31,9 @@ The album list shows filter chips for **decade** and **genre** at the top. Tap o
 
 ### Track ratings
 
-Tracks can be rated 1-5 stars. On desktop, hover over a track row to reveal the stars; tap a star to set the rating. Tapping the current rating clears it. On Android, stars are always visible on the now-playing screen. Ratings sync to your server.
+Tracks can be rated 1-5 stars. On desktop, hover over a track row to reveal the stars; tap a star to set the rating. On Android, stars show on the now-playing screen (long-press the cover art) and in search results. Tapping the current rating clears it. Ratings sync to your server.
+
+If your server also tracks ratings from other listeners (Navidrome's average rating), Firmium shows that community average next to your own rating wherever ratings appear - a small star and a number, e.g. "4.5". It's read-only, and only shows once at least one person has rated the track.
 
 ### BPM filter
 
@@ -44,6 +46,8 @@ Browse your music by artist. Each artist page shows their albums, and if availab
 ## Search
 
 Search across artists, albums, and tracks at once. Great for quickly finding a specific song without browsing.
+
+Use the **Min rating** stars above the results to narrow the song list to tracks rated at or above a chosen threshold - matching either your own rating or the community average, whichever is higher. Tap the active star again to clear the filter.
 
 ## Playlists
 

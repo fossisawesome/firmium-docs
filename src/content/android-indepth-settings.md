@@ -74,7 +74,7 @@ category list that drills down into per-category panels, mirroring the desktop a
   - **Reset Settings** — resets all settings to defaults.
 
 Settings are stored via `AppPreferences` and `SecureStorage`, the Android equivalents of the
-desktop app's localStorage and OS keyring usage — see
+desktop app's `config.toml` and OS keyring usage — see
 [Settings & Themes Internals](/settings-themes-internals) for the desktop-side details.
 
 ## See also

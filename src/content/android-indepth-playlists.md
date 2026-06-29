@@ -10,8 +10,8 @@ Playlists are stored as a single JSON array (serialized with Gson) in
 read and rewritten on every mutation via a `mutate { ... }` helper that loads the list,
 applies a lambda, and re-saves. `playlists: Flow<List<Playlist>>` is derived from
 `prefs.playlistsJson` and is the single source of truth. This mirrors the desktop's
-`localStorage`-backed playlists store in `src/lib/stores.ts`, but desktop stores each
-playlist as a separate entry rather than one JSON blob.
+`~/.config/<id>/playlists.json` store (`src/playlists.rs`), which also persists the
+whole list as one JSON array rather than per-playlist entries.
 
 `Playlist` (`data/model/Playlist.kt`) has three fields tracking server sync state:
 `serverId: String?` (the server-side playlist id once synced), `createPending: Boolean`
@@ -42,7 +42,7 @@ best-effort basis (wrapped in `try/catch`, errors swallowed):
   order with a single `api.updatePlaylist(serverId, songIndicesToRemove = <all original
   indices>, songIdsToAdd = <new order's song ids>)` call - OpenSubsonic's `updatePlaylist`
   has no native "move", so removing everything and re-adding in order is the standard
-  workaround (mirrors `PlaylistDetail.svelte::moveTrack()` on desktop).
+  workaround (mirrors `playlists::move_track()` + `push_reorder()` on desktop).
 - `retryPendingCreates(serverPlaylists)` - for each local playlist with `serverId == null
   && createPending && createAttempts < 3`, either adopts a same-named server playlist's
   id (avoiding a duplicate create) or calls `syncCreate(p)` again.
@@ -66,7 +66,7 @@ one-element array for `playlists.playlist`/`playlist.entry` when there's exactly
 which would otherwise throw inside Gson and (via the `try/catch` in
 `refreshServerPlaylists`/`loadServerPlaylistTracks`) silently look like "no playlists".
 `jsonArray` normalizes both shapes to a list. The desktop equivalent is
-`array_field()` in `src-tauri/src/commands/subsonic.rs`, fixed the same way.
+`array_field()` in `backend/commands/subsonic.rs`, fixed the same way.
 
 ## ViewModel (`viewmodel/PlaylistViewModel.kt`)
 

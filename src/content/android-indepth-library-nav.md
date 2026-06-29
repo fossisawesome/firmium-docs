@@ -45,7 +45,11 @@ ViewModel state pattern and the full route table, see [Android Internals](/andro
 
 ## Track ratings
 
-`PlayerViewModel.setRating()` calls `ApiClient.setRating()` (fire-and-forget) and updates the current track's `userRating` in `PlaybackController`. `FullScreenPlayer.kt` renders a `StarRating` composable (5 `Icons.Default.Star`/`StarBorder` icons) in an animated popup over the cover art, shown only on long-press of the art.
+`StarRating` and `AvgRatingBadge` live in `ui/components/RatingComponents.kt`, shared across every screen that shows a rating. `StarRating` is a plain `(rating: Int, onRate: (Int) -> Unit, ...)` composable with no opinion on what "rating" means - it's reused unmodified as the search rating-filter control. `AvgRatingBadge` renders the read-only OpenSubsonic `averageRating` (community average across all server users, parsed in `ApiClient.kt` via `optDouble("averageRating")`, `Song.averageRating: Double?`) - hidden when null.
+
+`PlayerViewModel.setRating()` calls `ApiClient.setRating()` (fire-and-forget) and updates the current track's `userRating` in `PlaybackController`; `FullScreenPlayer.kt` renders `StarRating` in an animated popup over the cover art, shown only on long-press of the art. `SearchViewModel.setRating(songId, rating)` is the equivalent for search results - it can't go through `PlaybackController` (the song may not be playing), so it patches `SearchState.songs` directly before firing `ApiClient.setRating()`.
+
+`SearchScreen.kt` also has `SearchState.ratingFilter: Int` (0 = off) and `SearchViewModel.setRatingFilter(n)`, which toggles the same way `setRating` does - tapping the active threshold clears it. The visible song list is `state.songs.filter { (it.userRating ?: 0) >= ratingFilter || (it.averageRating ?: 0.0) >= ratingFilter }` (either field meeting the threshold passes), computed in the screen via `remember(state.songs, state.ratingFilter)`.
 
 ## Filter chips
 
@@ -70,9 +74,9 @@ equivalent (`local_library.rs` + `LocalApi`).
 ## Cross-platform note
 
 These screens' data-loading pattern (idempotent `load*()` + `StateFlow` state) has no
-direct desktop equivalent - the desktop app fetches via `$dataSource` calls directly inside
-Svelte components/views. See [Desktop In-depth: Library Views](/desktop-indepth-library-views)
-for the desktop side.
+direct desktop equivalent - the desktop app spawns backend calls with `iced::Task::perform`
+directly from `update/*.rs`, with results applied to `App` state in `view/*.rs`. See
+[Desktop In-depth: Library Views](/desktop-indepth-library-views) for the desktop side.
 
 ## See also
 

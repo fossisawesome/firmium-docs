@@ -12,9 +12,17 @@ Show or hide the native title bar and window borders (Linux desktop only). Turn 
 
 Choose the color theme for the app, from the built-in options or any custom themes you've added. See [Customizing Themes](/custom-themes).
 
+### Font
+
+Choose the interface font from a curated list: Inter, Liberation Mono, Monospace, System, Iced, Comic Sans, Sans Serif, BigBlue Terminal, Cousine, FiraCode, and Hack.
+
+On desktop, the new font applies the next time you launch Firmium. On Android, it applies immediately.
+
 ### Visualizer
 
 Turn on an audio-reactive visualizer for the now playing screen. It's off by default. When enabled, pick a style: **Bars** (a frequency-bar spectrum), **Orb** (a glowing audio-reactive orb), or **Oscilloscope** (the waveform wrapped into a circle). On both desktop and mobile you can tap the visualizer to cycle styles, and the toggle in the now playing screen switches between the album art and the visualizer.
+
+On desktop, **Cover-Colored Visualizer** (in Settings, on by default) tints the visualizer with the colors of the current album's artwork. Turn it off to have the visualizer follow your chosen theme's colors instead. On mobile the visualizer always follows the album artwork.
 
 ## Playback
 
@@ -135,17 +143,15 @@ When enabled, Firmium signs you in automatically the next time you open the app,
 These options are mainly useful for troubleshooting or reporting bugs:
 
 - **App Version**: shows the version of Firmium you're running.
-- **Software Update**: checks for a newer release and installs it in place. See [Updating Firmium](#updating-firmium) below.
-- **Wipe Cache**: clears cached cover art. Doesn't affect your server or saved settings.
-- **Delete User Settings**: resets all preferences back to their defaults, including your saved login.
+- **Wipe Cover-Art Cache**: clears cached cover art. Doesn't affect your server or saved settings.
+- **Reset Preferences**: resets all preferences back to their defaults, including your saved login.
 
 ## Updating Firmium
 
 How you get updates depends on your platform:
 
-- **Windows**: use the Software Update button under Settings > Debug. Firmium checks the latest GitHub release, and if a newer version is available, downloads and installs it, then restarts.
-- **Linux (AppImage)**: same in-app update flow as Windows.
-- **Linux (.deb / .rpm / COPR)**: update through your package manager (`apt`, `dnf`, etc.) or COPR repo, like any other system package. The in-app update button isn't available for these builds, since package managers handle their own installs.
+- **Linux (.deb / .rpm / COPR / AUR)**: update through your package manager (`apt`, `dnf`, etc.) or COPR/AUR repo, like any other system package.
+- **Windows / Linux (AppImage)**: there's no in-app updater yet — download the latest installer/AppImage from the [releases page](https://github.com/fossisawesome/firmium/releases/latest).
 - **Android**: update through the Play Store, or by installing a new APK manually.
 
 For where each setting is stored and how it's wired up in the code, see [Settings & Themes Internals](/settings-themes-internals).

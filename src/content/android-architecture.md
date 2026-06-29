@@ -108,7 +108,7 @@ The wire constants live in `WearContract.kt`, duplicated in both modules — kee
 sync. This remote-control layer is also the groundwork for a future standalone-listening mode.
 
 **How data fetching works**: all networking goes through `ApiClient.kt` (OkHttp), not
-`src/lib/*.ts` from the desktop app. Coroutine-based calls run via `viewModelScope.launch`
+`backend/commands/subsonic.rs` from the desktop app. Coroutine-based calls run via `viewModelScope.launch`
 on the main dispatcher; any blocking OkHttp `.execute()` call must be wrapped in
 `withContext(Dispatchers.IO)`, or it throws `NetworkOnMainThreadException` (which can be
 silently swallowed by surrounding `catch` blocks — a common source of "nothing happens"

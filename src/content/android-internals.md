@@ -111,8 +111,8 @@ Routes:
   password, Last.fm API key/secret) - the Android equivalent of the desktop's OS keyring
   (`commands/credentials.rs`).
 - **`PlaylistRepository`**: persists playlists as a single JSON array (via Gson) in
-  `AppPreferences.PLAYLISTS_JSON` - mirrors the desktop's `localStorage`-backed playlists
-  store (`src/lib/stores.ts`). Exposes `playlists: Flow<List<Playlist>>` derived from
+  `AppPreferences.PLAYLISTS_JSON` - mirrors the desktop's `~/.config/<id>/playlists.json`
+  store (`src/playlists.rs`), which also persists the whole list as one JSON array. Exposes `playlists: Flow<List<Playlist>>` derived from
   `prefs.playlistsJson`. All mutations (`create`, `delete`, `rename`, `addTracks`,
   `removeTrack`) go through a `mutate { ... }` helper that loads the full list, applies
   the change, and re-saves it as JSON - there's no per-playlist storage, the whole list is

@@ -1,6 +1,6 @@
 # Playlists
 
-Playlists in Firmium live on your server, so they're the same playlists you'd see in Navidrome's web interface or any other app connected to your server.
+Playlists in Firmium are saved on your device and synced to your server when it's reachable, so they're the same playlists you'd see in Navidrome's web interface or any other app connected to your server.
 
 ## Viewing playlists
 
@@ -22,7 +22,7 @@ Open a playlist to:
 
 - Add or remove tracks (the remove button sits on each track row; removals are saved to the server)
 - Reorder tracks using the up/down arrows on each track
-- Rename the playlist or edit its description
+- Rename the playlist
 
 ## Deleting a playlist
 

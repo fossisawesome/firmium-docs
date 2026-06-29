@@ -5,24 +5,31 @@ first, see [Desktop Architecture](/architecture-overview).
 
 ## Data and playback flow
 
-`App.svelte` is the root component: on mount it checks for saved credentials, applies the
-saved theme and window decorations, and decides which view to show based on
-`activeView` in `src/lib/stores.ts`.
+The desktop app is a single native [iced](https://iced.rs) (Rust) binary — no web view, no
+JavaScript. `src/app.rs` holds all UI state on the `App` struct, a `Message` enum for every
+user action and async result, `App::update` (handles each `Message`), and `App::view`
+(re-rendered after every message). There's no separate store layer: `App` is the single
+source of truth.
 
-Views (`src/views/*.svelte`) call functions in `src/lib/api.ts` (the `Api` object) to fetch
-albums, artists, playlists, and search results from your Navidrome/OpenSubsonic server, and
-render the results directly — there's no separate caching layer beyond `coverCache.ts` (album
-art) and `listCache.ts` (list responses).
+`App::update` reacts to navigation (`Message::Navigate(View)`) by checking saved credentials
+in the OS keyring and, when authenticated, returning an `iced::Task::perform` that calls into
+`backend/commands/subsonic.rs` to fetch albums, artists, playlists, or search results from
+your Navidrome/OpenSubsonic server. Results come back as another `Message` (e.g.
+`Message::AlbumsLoaded`) and get stored directly on `App`; cover art goes through a disk cache
+(`backend/commands/cover_cache.rs`) into an `iced::widget::image::Handle` cached on `App`.
 
-When you press play, `playerControls.ts` (`togglePlay`, `nextTrack`, `prevTrack`,
-`cycleRepeat`) updates `stores.ts` and calls into `playback.ts`, which:
+When you press play, the relevant `Message` (`PlaySong`, `PlayAlbumAt`, `Next`, `Prev`, …) is
+handled in `App::update` by calling into `backend/commands/queue.rs`, which:
 
-- Calls `audioBridge` (a Tauri IPC wrapper in `audio-bridge.ts`) to start streaming the track
-  via the Rust `play_stream` command.
-- Polls playback position/state every 750ms and writes it back to `currentPosition` /
-  `playbackState` stores, which the Player Bar reads reactively.
-- Watches for the track nearing its end and, depending on the Crossfade/Gapless settings,
-  calls `crossfade_to()` or `preload_stream()`/`play_stream()` for the next track.
+- Calls `backend/commands/playback.rs::play_stream` to start streaming the track through the
+  audio engine (`backend/audio/`: `symphonia` decode + `cpal` output).
+- The audio engine pushes `PlaybackStateChanged`/`PlaybackPosition` events onto the in-process
+  `EventBus` (`backend/events.rs`, a `tokio::sync::broadcast` channel); the UI's
+  `App::subscription` bridges that into `Message::Backend(BackendEvent)`, which updates
+  `App`'s position/duration fields directly — no polling.
+- The background `queue_manager` task (started by `Backend::new()` in `backend/init.rs`) watches
+  for a track nearing its end and, depending on the Crossfade/Gapless settings, calls
+  `AudioPlayer::crossfade_to()` or `preload_stream()`/`play_stream()` for the next track.
 
 ## See also
 
