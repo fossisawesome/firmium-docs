@@ -87,25 +87,86 @@ both the phone and the car drive the one `PlaybackController`.
 
 The Wear OS app is a second Gradle module, `android/wear/`, with its own Compose for Wear OS UI.
 It shares the phone app's `applicationId` (`com.fossisawesome.firmium`) so the system associates
-the two, but shares no code with `:app`. It is a remote only — no auth, API client, or player; all
-playback stays on the phone, driven by the same app-scoped `PlaybackController`.
+the two, but shares no code with `:app` — types with the same name (`ApiClient`, `AudioPlayer`,
+`WearContract`) are independent copies duplicated across modules, kept manually in sync.
 
-The two halves talk over the **Wearable Data Layer API** (`play-services-wearable`):
+The watch supports two modes, both reachable from `HomeScreen`:
 
-- **Commands (watch → phone)** go over the `MessageClient` on path `/firmium/cmd`, with a UTF-8
-  payload (`play_pause`, `next`, `prev`, `set_volume:<0..1>`). On the phone, `WearRemoteService`
-  (a `WearableListenerService`, declared in the manifest with a `MESSAGE_RECEIVED` intent filter
-  scoped to `/firmium`) receives them, hops to the main thread, and calls the matching
-  `PlaybackController` method. Being a listener service lets the phone wake to handle a command
-  while backgrounded.
-- **State (phone → watch)** goes over the `DataClient` on path `/firmium/now_playing`.
-  `WearStateSync` (started from `FirmiumApplication`) observes `PlaybackController.state` and writes
-  a `DataMap` snapshot (title, artist, album, isPlaying, volume) plus a downscaled JPEG cover-art
-  `Asset` whenever the track changes. `DataClient` retains the latest item, so the watch renders the
-  correct now-playing the moment its UI opens.
+**Remote-control mode** (phone plays, watch controls) — `RemoteScreen.kt`, driven by
+`WearPlaybackClient`. Talks to the phone over the **Wearable Data Layer API**
+(`play-services-wearable`): commands (watch → phone) go over the `MessageClient` on path
+`/firmium/cmd` (`play_pause`, `next`, `prev`, `set_volume:<0..1>`), received on the phone by
+`WearRemoteService` (a `WearableListenerService`) which calls the phone's `PlaybackController`.
+State (phone → watch) goes over the `DataClient` on path `/firmium/now_playing`, written by
+`WearStateSync` (started from the phone's `FirmiumApplication`) whenever
+`PlaybackController.state` changes.
 
-The wire constants live in `WearContract.kt`, duplicated in both modules — keep the two copies in
-sync. This remote-control layer is also the groundwork for a future standalone-listening mode.
+**Standalone mode** (watch authenticates, fetches, and plays on its own — no phone needed at
+runtime) — the default screen (`WearNavGraph.kt`, `wear/ui/*Screen.kt`), built up across four
+increments:
+
+1. **Credential handoff** — the phone's `WearAuthSync` (started from `FirmiumApplication`) pushes
+   the active account's server URL/username/password to a `DataItem` on path `/firmium/auth`
+   whenever it changes (login, account switch, logout, app-start restore). The watch's
+   `WearAuthClient` listens and writes into `WatchSecureStorage` (Keystore-backed, mirrors the
+   phone's `SecureStorage`).
+2. **API client** — `data/api/ApiClient.kt` on the watch is a near-verbatim port of the phone's
+   (albums, artists, search, playlists, scrobble, playback reporting, lyrics — everything except
+   what needs infra the watch doesn't have). Its `WatchAuthManager` reads from
+   `WatchSecureStorage` and builds the same MD5-token Subsonic auth params as the phone's
+   `AuthManager`, refreshing whenever `WearAuthClient` receives new credentials.
+3. **Playback engine** — `audio/AudioPlayer.kt` (ExoPlayer session engine — crossfade, gapless
+   queue, ReplayGain; no EQ) and `audio/WatchPlaybackController.kt` (queue/transport
+   orchestration, scrobble + playback reporting) are scoped-down ports of the phone's equivalents,
+   dropping Android Auto entry points, local-library preference, play history, auto-continue
+   radio, and ListenBrainz. `audio/WatchNowPlayingNotifier.kt` + `WatchNowPlayingService.kt` give
+   the watch a plain foreground-service notification (title/artist, single play-pause toggle) —
+   no `MediaSessionCompat`/`MediaStyle` yet. `data/storage/WatchPreferences.kt` persists just the
+   8 playback-relevant settings (volume, repeat, shuffle, crossfade, gapless, ReplayGain) in a
+   watch-local DataStore.
+4. **Browse UI** — `wear/ui/` holds one composable screen per file (Home, Artists, Artist detail,
+   Album detail, Playlists, Playlist detail, Search, Downloads, Now Playing), wired by
+   `WearNavGraph.kt`'s `SwipeDismissableNavHost`. No ViewModel layer — screens call
+   `FirmiumWearApplication` singletons directly and load data via `produceState`. Search uses the
+   system voice/text input intent (`RemoteInputIntentHelper`, `androidx.wear:wear-input`) rather
+   than an on-screen keyboard. Playlists are read-only (browse + play, no create/edit/delete).
+5. **Mode persistence + offline downloads** — `WearNavGraph.kt` observes its own
+   `NavController` back-stack (`currentBackStackEntryAsState`) and persists whichever top-level
+   route is active (`"remote"` vs. everything else) to `WatchPreferences.lastMode`, resolving it
+   again on next launch to pick `SwipeDismissableNavHost`'s `startDestination` — the app reopens
+   into whichever mode was last used. Switching into remote mode also pauses any active standalone
+   playback. `data/download/WatchDownloadManager.kt` downloads tracks to app-private storage
+   (`filesDir/downloads/<songId>`) via a dedicated `OkHttpClient` GET on
+   `WatchAuthManager.downloadUrl()` (format read from `WatchPreferences.downloadFormat`, synced —
+   see below), persisting a manifest of downloaded `Song` objects as Gson JSON in its own
+   DataStore file. `WatchPlaybackController.streamUrlFor` checks
+   `downloadManager.localPathFor(songId)` first (`"file://..."` URI for ExoPlayer), falling back
+   to `auth.streamUrl()` — same local-file-first pattern as the phone's
+   `PlaybackController.streamUrlFor`. `AlbumDetailScreen`/`PlaylistDetailScreen` get bulk
+   download buttons plus per-track download icons; `DownloadsScreen` lists downloads with total
+   storage used and per-item delete.
+6. **Settings sync** — no watch-side settings screen; the phone's `WearSettingsSync` (started
+   from `FirmiumApplication`) observes `AppPreferences` (`themeId` resolved to hex colors via
+   `themeById()`, crossfade enabled/duration/curve, gapless, ReplayGain, download format) and
+   pushes a `DataItem` on `/firmium/settings` whenever any change (each preference collected
+   independently rather than via a single `combine()` — there are 7 of them and typed `combine()`
+   overloads only go up to 5). The watch's `WearSettingsClient` writes everything into
+   `WatchPreferences`. No further wiring needed: `WatchPlaybackController` already reactively
+   collects the playback-setting flows (from increment 3), `WatchDownloadManager` reads
+   `downloadFormat` per-download, and `Theme.kt`'s `FirmiumWearTheme` reactively collects the 8
+   synced theme fields (`WatchPreferences.themeColors`), falling back to a hardcoded default until
+   the first sync arrives. Shuffle/repeat/volume are deliberately **not** synced — they're live
+   per-device playback state with their own watch-side controls (Now Playing screen).
+
+All standalone singletons (`secureStorage`, `authManager`, `api`, `watchPreferences`, `notifier`,
+`downloadManager`, `playbackController`) live in `FirmiumWearApplication`, the watch module's
+manual-DI container (mirrors the phone's `FirmiumApplication`). `WearAuthClient`/`WearSettingsClient`
+(and the older `WearPlaybackClient`) are instantiated in `MainActivity` instead, matching the
+lifecycle of the watch UI rather than the whole app.
+
+The wire constants for both modes live in `WearContract.kt`, duplicated in both modules — keep the
+two copies in sync. Not yet built: playlist create/edit/delete — see the project roadmap for
+what's next.
 
 **How data fetching works**: all networking goes through `ApiClient.kt` (OkHttp), not
 `backend/commands/subsonic.rs` from the desktop app. Coroutine-based calls run via `viewModelScope.launch`
