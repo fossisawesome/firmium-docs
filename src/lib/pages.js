@@ -11,7 +11,9 @@ import podcastsMd from '../content/podcasts.md?raw'
 import themesMd from '../content/custom-themes.md?raw'
 import androidAutoMd from '../content/android-auto.md?raw'
 import wearosMd from '../content/wearos.md?raw'
+import androidTvMd from '../content/android-tv.md?raw'
 import settingsMd from '../content/settings.md?raw'
+import commandLineControlMd from '../content/command-line-control.md?raw'
 import troubleshootingMd from '../content/troubleshooting.md?raw'
 import developerOverviewMd from '../content/developer-overview.md?raw'
 import architectureMd from '../content/architecture-overview.md?raw'
@@ -66,7 +68,9 @@ export const categories = [
       { path: '/custom-themes', label: 'Customizing Themes', content: themesMd },
       { path: '/android-auto', label: 'Android Auto', content: androidAutoMd },
       { path: '/wearos', label: 'Wear OS', content: wearosMd },
+      { path: '/android-tv', label: 'Android TV', content: androidTvMd },
       { path: '/settings', label: 'Settings', content: settingsMd },
+      { path: '/command-line-control', label: 'Command Line Control', content: commandLineControlMd },
     ],
   },
   {

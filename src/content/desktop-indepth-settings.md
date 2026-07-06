@@ -27,6 +27,13 @@ helpers for consistent styling.
   persisted value (`config.window_decorations`) is applied at boot in `src/main.rs`
   through `iced::application(...).decorations(...)`.
 
+  On Wayland, winit requests server-side decorations (`WindowDecorations::RequestServer`
+  in `winit`'s wayland backend) and `toggle_decorations` calls the compositor's
+  `set_decorations` — but the compositor can silently ignore it. wlroots-based
+  compositors (Hyprland, Sway) generally don't implement SSD, so there's no title
+  bar to toggle and the setting is a visible no-op there. GNOME/KDE and X11
+  (including XWayland) honor it correctly.
+
 ## Playback (`settings_playback`)
 
 - **Crossfade** — toggle (`Message::SetCrossfadeEnabled`); when on, a **Crossfade

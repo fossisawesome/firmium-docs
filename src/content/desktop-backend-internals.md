@@ -28,6 +28,7 @@ Code inside `backend/` can reference `crate::events::EventBus`, `crate::commands
 4. Creates `Arc<QueueState>` (the authoritative queue and playback settings).
 5. Optionally creates `Arc<PlayHistory>` (SQLite-backed play history; initialization failures are non-fatal and yield `None`).
 6. Calls `queue_manager::start(...)` to launch the background task that reacts to playback events.
+7. Calls `ipc::start(...)` to launch the CLI control socket listener.
 
 The resulting `Backend` struct is stored on the `App` struct in `src/app.rs` and accessed by `update()` when dispatching backend calls.
 
@@ -145,29 +146,45 @@ The feeder checks `EqShared.generation` (an `AtomicU64`) each chunk; it rebuilds
 
 `mix_into` runs in the cpal realtime callback. For each active session it reads from `session.ring`, applies per-session volume, adapts channel count (mono-to-stereo or stereo-to-mono), and runs linear-interpolation resampling if the session's native rate does not match the currently open stream's rate. When rates match, the resampler step is exactly 1.0 and degenerates to a passthrough with no interpolation overhead.
 
-## Visualizer (`backend/visualizer.rs`)
+## Visualizer
 
-`VisualizerState` is shared between the decode feeder, a background analysis task, and the iced canvas in `src/viz.rs`.
+FFT analysis lives in the backend (`backend/visualizer.rs`); rendering is a GPU `wgpu` shader pipeline under `src/viz/` — an `iced::widget::shader::Program`, not a CPU `canvas::Program`. Three modes exist: **Bars**, **Lines**, **Scope** (`VizMode` in `src/viz/mod.rs`; there is no "orb" mode).
 
-Key fields:
+### FFT analysis (`backend/visualizer.rs`)
 
-- `enabled: AtomicBool`: gates both the sample tap and the analysis task. No overhead when the visualizer panel is closed.
-- `buffer: Mutex<VecDeque<f32>>`: mono ring buffer, capacity 8192 samples.
-- `smooth_bars`, `smooth_bass`, `smooth_mid`, `smooth_treble`, and corresponding `last_*` snapshots: the analysis results read by the canvas.
-- `dirty: AtomicBool`: set after each analysis frame; cleared by the renderer after consuming, preventing redundant redraws.
+`VisualizerState` is shared between the decode feeder and a background analysis task, and read each frame by `src/viz/state.rs::VizState`.
 
-`process_chunk(samples, channels, state)` is called inline from the decode feeder. It downmixes interleaved samples to mono (sum one sample per channel, divide by channel count) and pushes them into `buffer`.
+- `enabled: AtomicBool`: gates both the sample tap and the analysis task.
+- `buffer: Mutex<VecDeque<f32>>`: mono ring buffer, capacity 8192 samples, fed by `process_chunk(samples, channels, sample_rate, state)` (called inline from the decode feeder — downmixes interleaved samples to mono and pushes them in).
+- `smooth_bars`, `smooth_bass`, `smooth_mid`, `smooth_treble` and corresponding `last_*` snapshots, plus `dirty: AtomicBool` (set after each analysis pass, cleared once `VizState` consumes it).
 
-A background analysis task spawned once from `AudioPlayer::new` wakes every 16 ms while `enabled` is true:
+A background task (`spawn_analysis_task`, `ANALYSIS_INTERVAL` = 16 ms) runs while `enabled`:
 
-1. Takes the most recent 2048 samples from `buffer`.
-2. Applies a Hann window and runs a forward FFT via `rustfft::FftPlanner`.
-3. Computes `bass` as peak magnitude in the 40-250 Hz bins, normalized to 0..1.
-4. Groups the magnitude spectrum into 120 log-spaced bars (40 Hz to 18 kHz, peak per band), normalized to 0..1.
-5. Downsamples the window to 120 points for the oscilloscope waveform (`WAVE_POINTS = 120`).
-6. Applies per-value smoothing (fast attack, slow decay) and stores the results.
+1. Takes the most recent `FFT_SIZE = 2048` samples from `buffer`, applies a Hann window, runs a forward FFT via `rustfft::FftPlanner`.
+2. `band_energy()` computes `raw_bass` (40-250 Hz), `raw_mid` (250-4000 Hz), `raw_treble` (4000-18000 Hz) as peak magnitude per band, normalized.
+3. `compute_bars()` groups the spectrum into `BAR_COUNT = 120` log-spaced bins (40 Hz to 18 kHz, peak magnitude per bin), normalized to 0..1.
+4. Optional per-bar smoothing, mutually exclusive, set via `VisualizerState::set_monstercat`/`set_waves`:
+   - **Monstercat**: `monstercat_filter()` spreads each bar's energy to its neighbors exponentially (`bars[m] = max(bars[m], bar_value / (intensity*1.5)^distance)`), then a light `waves_smooth(bars, 2)` pass smooths the seams. Intensity below `MONSTERCAT_MIN_EFFECTIVE = 0.7` is treated as disabled.
+   - **Waves**: `waves_smooth(bars, step)` picks sparse control points every `step` bars and reconstructs a smooth curve across all 120 bars with a Catmull-Rom spline (`catmull_rom_1d`).
+5. Asymmetric one-pole smoothing (attack α=0.6, release α=0.15 — fast rise, slow decay) applied to bass/mid/treble and every bar against the previous frame.
+6. `wave_out`: the raw time-domain buffer downsampled to `WAVE_POINTS = 120` (chronological order), used as the Scope's oscilloscope trace.
 
-`src/viz.rs` implements the iced `canvas::Program` for bars, oscilloscope, and orb modes, reading the latest snapshot via `VisualizerState` getters. All rendering is CPU-side inside iced's canvas; there is no separate GPU compute path for the visualizer.
+Results land in `last_bars`/`last_wave`/`last_bass`/`last_mid`/`last_treble`; `dirty` is set.
+
+### GPU rendering (`src/viz/`)
+
+- **`mod.rs`**: `VizMode` enum (`Bars`/`Lines`/`Scope`), re-exports `VizConfig` (from `config.rs`) and `Visualizer` (alias for `ShaderVisualizer` in `shader.rs`).
+- **`config.rs`**: `VizConfig` — all user-tunable knobs (~60 fields): shared (gradient/peak colors, border, peak hold/fade, bar depth, global opacity), Bars-only (`bars_*`: gradient mode/orientation, peak mode, LED segments, trails, echo), Lines-only (`lines_*`: point count, outline, glow, mirror, style, trails, echo), Scope-only (`scope_*`: radius, sensitivity, particles, beam mode, trails, echo), and global post-processing (`bloom_enabled`, `bloom_intensity`, `beat_reactivity`, `crt`).
+- **`state.rs`**: `VizState` (backend handle + peak-hold/flash/beat-pulse tracking + `ParticleSystem`). `tick()` runs once per frame: beat detection (bass envelope vs. a slow running max), per-bar flash-onset decay, peak-hold physics (gravity fall + fade), and drives particle simulation. `trail_draining()` reports whether trails/echo are still fading out after audio stops, so the widget keeps repainting until they're done.
+- **`shader.rs`**: the `iced::widget::shader::Program` impl. `VisualizerConfig`/`Uniforms` are `#[repr(C, align(16))]` `Pod` structs packed once per frame in `VisualizerPrimitive::new()` — mode-specific point counts are independently resampled (linear interpolation) from the backend's fixed 120-length arrays; Scope reuses Lines' outline/gradient/glow/style uniform slots since only one of the two ever renders per frame. Bloom auto-enables from either the global bloom setting or Lines/Scope's `glow_intensity` (glow reuses the bloom pipeline at a lower threshold and more blur iterations for a tighter glow look).
+- **`pipeline.rs`**: `VisualizerPipeline` (the `shader::Pipeline` impl), built once per `wgpu` device. Loads `bars.wgsl`/`lines.wgsl`/`scope.wgsl`/`particles.wgsl`/`bloom.wgsl`/`echo.wgsl`/`crt.wgsl` (`include_str!`) and builds MSAA + non-MSAA render pipeline variants per mode. All scene geometry is vertex-pulled from storage buffers (no vertex buffers).
+- **`particles.rs`**: CPU particle simulation for Scope's drifting spark/dust field. `ParticleSystem` pre-warms a pool with a deterministic `XorShift32` PRNG; particles either respawn as ambient dust or as sparks launched off the waveform's loudest points, driven by a curl-noise flow field for organic swirl, and recycle once past a panel bound. `update()` runs once per frame from `VizState::tick`; `gpu_data()` packs two `vec4`s per particle for `particles.wgsl`.
+
+**Post-processing pipeline** (`shader.rs::render()`, skipped via a cheap fast path when no effect is active): scene render into an MSAA texture (resolved to `resolve_texture`) → optional ring-only re-render (echo's clean source, no particles) → bloom (ping-pong bright-pass + separable blur, `bloom.wgsl`) → motion trails (fade + max-composite into a `Rgba16Float` trail texture) → echo/Milkdrop feedback (zoom/rotate the previous frame, blend with the fresh ring, `echo.wgsl`) → blit to the framebuffer (through `crt.wgsl` if CRT is enabled) → particles redrawn crisp on top (so echo warp never smears them) → bloom composite (additive) on top of everything.
+
+### Settings → `VizConfig` (`src/app/viz_colors.rs`)
+
+`App::viz_config()` rebuilds a `VizConfig` every frame the Visualizer panel is open (struct-update off `VizConfig::default()`), called from `panels.rs::viz_panel()` when constructing `iced::widget::shader(Visualizer::new(...))`. Gradient colors come from either the extracted cover-art palette (`commands::cover_colors::extract_cover_colors`, refetched by `App::maybe_fetch_viz_colors()` when the track changes and "match cover" is on) or the active theme's accent ramp. All Bars/Lines/Scope Settings fields map directly to their `VizConfig` counterparts; Monstercat/Waves smoothing settings configure the backend FFT (`VisualizerState::set_monstercat`/`set_waves`) rather than `VizConfig` — a separate path from the render config. A few fields (border/peak color, peak alpha, bloom, CRT, beat reactivity) have no Settings UI yet and stay at their `Default` values. App-level `bars_*`/`lines_*`/`scope_*` fields persist to `~/.config/<id>/config.toml`.
 
 ## Equalizer DSP (`backend/audio/eq.rs`, `backend/commands/equalizer.rs`)
 
@@ -180,7 +197,16 @@ The EQ is a biquad IIR chain using RBJ Audio EQ Cookbook coefficients. `Biquad` 
 
 `commands/equalizer.rs` owns all file I/O. Profiles persist in `eq.toml` under the app config directory (same `toml` crate as themes), with `[settings] enabled`, `[profiles.NAME]`, and `[devices."NAME"] active_profile` tables. Each of the six commands (`get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`) mutates the file then calls `reapply()`, which re-resolves the default device's active profile and calls `AudioPlayer::set_eq_runtime()` to bump the generation. Graphic profiles map the first and last bands to low/high shelves and the rest to peaking filters; parametric profiles are all peaking with explicit Q values.
 
+## CLI control socket (`backend/ipc.rs`)
+
+A running instance listens for line-based commands on a Unix domain socket (`$XDG_RUNTIME_DIR/firmium.sock`, falling back to the app cache dir) on Linux/macOS, or a named pipe (`\\.\pipe\firmium-com.fossisawesome.firmium`) on Windows. `Backend::new()` spawns the listener via `ipc::start()`, holding clones of the same `Arc<QueueState>`, `Arc<AppState>`, `Arc<AudioPlayer>`, and `EventBus` handles the UI uses.
+
+Each connection is one command: the client writes a line, the server calls the matching `commands::queue::*` fn directly (bypassing `Message`/`Task::perform` entirely, since those fns only take backend `Arc` handles), writes one reply line, and closes. Commands: `play-pause`, `next`, `prev`, `volume <0-100>`, `seek <secs>`, `queue-index <n>`, `shuffle-toggle`, `repeat-cycle`, `status` (replies with a JSON snapshot built from `QueueState` + `AudioPlayer::get_state`/`get_current_position`/`get_duration`).
+
+`src/main.rs` implements the client side: if `firmium` is invoked with args, `run_cli()` connects synchronously (`std::os::unix::net::UnixStream` / a `File` opened on the pipe path — no Tokio runtime needed for a one-shot call), sends the joined args as one line, prints the reply, and exits before any GUI code runs.
+
 ## See also
 
 - [Desktop Architecture](/architecture-overview)
 - [Settings & Themes Internals](/settings-themes-internals)
+- [Command Line Control](/command-line-control)

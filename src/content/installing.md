@@ -1,8 +1,10 @@
 # Installing
 
-Firmium is available for **Linux desktop** and **Android**.
+Firmium is available for **Linux desktop, macOS, FreeBSD** and **Android**.
 
 > **Compatibility (Linux):** Tested on Hyprland (Wayland). Other desktop environments should work but are not officially tested. X11 is untested.
+
+> **macOS builds are unsigned.** There's no Apple Developer account yet, so the app isn't notarized. On first launch, Gatekeeper blocks it — right-click the app in Finder, choose **Open**, then confirm. Only needed once.
 
 ## Android
 
@@ -18,6 +20,12 @@ adb install firmium_*.apk
 Or transfer the APK to your device and open it with a file manager. You may need to enable **Install from unknown sources** in your device settings.
 
 > **Note:** Firmium for Android requires Android 8.0 (API 26) or later.
+
+## macOS
+
+Download the `.dmg` matching your Mac from the [releases page](https://github.com/fossisawesome/firmium/releases/latest) — `firmium-*-Intel.dmg` for Intel Macs, `firmium-*-AppleSilicon.dmg` for Apple Silicon (M1/M2/M3/M4). Open the `.dmg` and drag **Firmium** into **Applications**.
+
+No extra system libraries are needed — audio (CoreAudio) and credential storage (Keychain) are built into macOS.
 
 ## System Dependencies (Linux)
 
@@ -39,6 +47,12 @@ sudo dnf install -y alsa-lib openssl-libs libsecret libxkbcommon
 
 ```bash
 sudo pacman -S --needed alsa-lib openssl libsecret libxkbcommon
+```
+
+**FreeBSD**
+
+```bash
+pkg install -y alsa-lib dbus libxkbcommon
 ```
 
 Firmium also requires:
@@ -69,6 +83,14 @@ sudo dnf install firmium
 ```bash
 # Download the .deb from the releases page, then:
 sudo dpkg -i ./firmium_*.deb
+```
+
+## Installing the App (FreeBSD)
+
+Download the `.pkg` from the [releases page](https://github.com/fossisawesome/firmium/releases/latest), then:
+
+```bash
+sudo pkg install ./firmium-*-freebsd.pkg
 ```
 
 ## Next Steps

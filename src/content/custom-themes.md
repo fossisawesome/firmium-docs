@@ -2,6 +2,8 @@
 
 Firmium ships with a number of built-in color themes, including `firmium`, `gruvbox`, `dracula`, `nord`, `tokyo-night`, `svalbard` (an icy arctic palette), the Catppuccin family, and more. You can pick one in [Settings](/settings), or create your own.
 
+This page covers **color themes** (palettes) only. There's a separate, independent **UI Theme** setting (Default or Spotify-style layout) — see [Settings](/settings#ui-theme). UI themes are built-in only; they aren't user-importable `.toml` files like color themes.
+
 ## Picking a theme
 
 Open **Settings** and choose a theme from the Appearance section. The change applies immediately.

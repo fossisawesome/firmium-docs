@@ -22,7 +22,7 @@ firmium/
                       cover.rs, viz_colors.rs, subscription.rs, export.rs
     theme.rs          TOML theme tokens -> iced Theme + dynamic accent
     icons.rs          Bundled SVG icon set (recolored per theme)
-    viz.rs            Visualizer canvas (bars / oscilloscope / orb)
+    viz/              GPU visualizer (wgpu shader widget: Bars / Lines / Scope)
     config.rs         ~/.config/<id>/config.toml (server, theme, volume)
     playlists.rs      Local-first playlists + ~/.config/<id>/playlists.json
   backend/            Rust backend (no UI)
@@ -53,7 +53,7 @@ firmium/
 
 **How playback works**: when you select a track, `App::update` calls a backend queue function (`set_queue`, `set_queue_seamless`, `shuffle_and_play`, `play_queue_index`, ...) in `backend/commands/queue.rs`. The backend resolves the stream URL (checking for a local file match before falling back to a Subsonic stream URL), calls `AudioPlayer::play_stream` in `backend/audio/`, and emits `QueueStateChanged` on the bus so the UI updates. The `queue_manager` task subscribes to the bus: it reacts to `PlaybackPosition` events to trigger crossfade and gapless preload at the right time, and to `PlaybackFinished` events to advance the queue, scrobble, and handle repeat/shuffle. The audio engine (`backend/audio/`) streams from your server, decodes with `symphonia`, and plays through `cpal` at the track's native sample rate.
 
-**Visualizer**: `backend/visualizer.rs` runs FFT analysis on a background task and stores the latest `bass`/`bars`/`wave` snapshot. `src/viz.rs` is an iced `Canvas` that reads that snapshot and draws the bars, oscilloscope, or orb, redrawn at 60fps while the panel is open.
+**Visualizer**: `backend/visualizer.rs` runs FFT analysis on a background task and stores the latest `bass`/`bars`/`wave` snapshot. `src/viz/` renders it as a GPU `wgpu` shader widget (`iced::widget::shader::Program`, not a CPU canvas) in one of three modes — Bars, Lines, Scope — with a full post-processing chain (bloom, motion trails, Milkdrop-style echo feedback, CRT scanlines) and a CPU particle system for Scope's spark field. See [Desktop Backend Internals](/desktop-backend-internals#visualizer) for the module layout and data flow.
 
 **How themes work**: theme files are TOML — either the built-ins under `themes/` (compiled into the binary) or files the user drops in their config directory. `list_themes` in `backend/commands/themes.rs` merges both sets, and `src/theme.rs` parses the chosen theme's tokens into iced `Color`s. See [Settings & Themes Internals](/settings-themes-internals) for the full mechanism.
 

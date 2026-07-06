@@ -1,11 +1,13 @@
 # Building from Source
 
-This page covers building Firmium yourself from the source code, for both the Linux desktop app and the Android app. If you're new to the codebase and want to understand how everything fits together first, see the [Architecture Overview](/architecture-overview).
+This page covers building Firmium yourself from the source code, for the desktop app (Linux, Windows, macOS, FreeBSD) and the Android app. If you're new to the codebase and want to understand how everything fits together first, see the [Architecture Overview](/architecture-overview).
 
 ## Prerequisites
 
 - Rust 1.80 or later (`rustup default stable`)
-- System dependencies for your distribution (see [Installing → System Dependencies](/installing#system-dependencies-linux)) — ALSA, GTK 3 (native file dialogs), libsecret (keyring), plus a Vulkan or OpenGL driver for the GPU-accelerated UI
+- On Linux: system dependencies for your distribution (see [Installing → System Dependencies](/installing#system-dependencies-linux)) — ALSA, GTK 3 (native file dialogs), libsecret (keyring), plus a Vulkan or OpenGL driver for the GPU-accelerated UI
+- On macOS: Xcode Command Line Tools (`xcode-select --install`) — no other system libraries needed
+- On FreeBSD: `pkg install alsa-lib dbus libxkbcommon` (credential storage uses the same D-Bus Secret Service mechanism as Linux) plus a Mesa/Vulkan driver
 
 The desktop app is a native [iced](https://iced.rs) (Rust) application — there is no Node.js / npm step anymore.
 
@@ -41,6 +43,14 @@ makepkg -si
 ### Fedora / RPM (`firmium.spec`)
 
 The [`firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/firmium.spec) (and [`packaging/firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/packaging/firmium.spec)) build from source with `cargo build --release` and install the resulting `firmium` binary, the desktop entry, and icons. This is the spec used for the Fedora COPR build.
+
+### macOS (`.app` / `.dmg`)
+
+There's no formula or cask — the release workflow assembles a `Firmium.app` bundle by hand: the `cargo build --release` binary goes in `Contents/MacOS/firmium`, the icon at `assets/app-icons/icon.icns` goes in `Contents/Resources`, and [`packaging/macos/Info.plist`](https://github.com/fossisawesome/firmium/blob/main/packaging/macos/Info.plist) (with the version substituted in) goes in `Contents`. `hdiutil create` then wraps the `.app` plus an `/Applications` symlink into a `.dmg`. Builds are unsigned (no Apple Developer account yet), so notarization/codesigning isn't part of the pipeline.
+
+### FreeBSD (`.pkg`)
+
+The release workflow builds `cargo build --release` inside a FreeBSD VM (via `cross-platform-actions`, since GitHub Actions has no native FreeBSD runner), stages the binary plus `packaging/firmium.desktop` and icons, and runs `pkg create` to produce a `.pkg`. Install it with `pkg install ./firmium-*-freebsd.pkg`.
 
 ## Building for Android
 
