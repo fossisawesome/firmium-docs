@@ -35,6 +35,7 @@ import androidIndepthLibraryNavMd from '../content/android-indepth-library-nav.m
 import androidIndepthQueueLyricsMd from '../content/android-indepth-queue-lyrics.md?raw'
 import androidIndepthPlaylistsMd from '../content/android-indepth-playlists.md?raw'
 import androidIndepthSettingsMd from '../content/android-indepth-settings.md?raw'
+import termiumArchitectureMd from '../content/termium-architecture.md?raw'
 
 export const categories = [
   {
@@ -127,6 +128,12 @@ export const categories = [
               { path: '/android-indepth-settings', label: 'Settings', content: androidIndepthSettingsMd },
             ],
           },
+        ],
+      },
+      {
+        name: 'Termium',
+        pages: [
+          { path: '/termium-architecture', label: 'Termium Architecture', content: termiumArchitectureMd },
         ],
       },
     ],
