@@ -15,6 +15,7 @@ import androidTvMd from '../content/android-tv.md?raw'
 import settingsMd from '../content/settings.md?raw'
 import commandLineControlMd from '../content/command-line-control.md?raw'
 import troubleshootingMd from '../content/troubleshooting.md?raw'
+import privacyPolicyMd from '../content/privacy-policy.md?raw'
 import developerOverviewMd from '../content/developer-overview.md?raw'
 import architectureMd from '../content/architecture-overview.md?raw'
 import buildingMd from '../content/building-from-source.md?raw'
@@ -78,6 +79,7 @@ export const categories = [
     name: 'Reference',
     pages: [
       { path: '/troubleshooting', label: 'Troubleshooting', content: troubleshootingMd },
+      { path: '/privacy-policy', label: 'Privacy Policy', content: privacyPolicyMd },
     ],
   },
   {

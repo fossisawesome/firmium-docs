@@ -21,6 +21,10 @@ You can add music to your local library by:
 
 Shows what's new and what you've been listening to: recently added albums and recently played albums, plus genre shortcuts you can tap to jump into a search.
 
+## Favorites
+
+Tap the heart icon on any song, album, or artist to favorite it - you'll find it on album detail pages, track lists, and the now-playing screen. Everything you've favorited shows up together on the Favorites screen, grouped into Artists, Albums, and Songs. Get there from the Favorites shortcut on the Home screen, or from the sidebar on desktop.
+
 ## Albums
 
 Your full album library. Tap an album to see its tracklist, artwork, and other details, and to start playing it.
