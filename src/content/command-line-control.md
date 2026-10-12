@@ -16,6 +16,10 @@ firmium status             # JSON snapshot: track, position, playing, volume, sh
 
 Each command connects to the running instance, sends the request, prints the reply, and exits — it does not open a second window. If Firmium isn't running, the command prints an error and exits non-zero.
 
+## System media controls
+
+Firmium also registers with your operating system's media controls, so media keys, headset buttons and the system now-playing widget work without any setup. On Linux this is an MPRIS player named `firmium` (usable with `playerctl`), on Windows it appears in the system media overlay, and on macOS in Now Playing. Play, pause, next, previous and seeking are supported. Cover art is not shown there yet.
+
 ## Example: bind a media key
 
 ```bash

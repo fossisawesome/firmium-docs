@@ -74,7 +74,7 @@ equivalent (`local_library.rs` + `LocalApi`).
 ## Cross-platform note
 
 These screens' data-loading pattern (idempotent `load*()` + `StateFlow` state) has no
-direct desktop equivalent - the desktop app spawns backend calls with `iced::Task::perform`
+direct desktop equivalent - the desktop app calls backend commands through Tauri (`src/lib/api.ts`)
 directly from `update/*.rs`, with results applied to `App` state in `view/*.rs`. See
 [Desktop In-depth: Library Views](/desktop-indepth-library-views) for the desktop side.
 

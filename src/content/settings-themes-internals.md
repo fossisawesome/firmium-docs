@@ -1,57 +1,58 @@
 # Settings & Themes Internals
 
-This page documents how settings and themes are stored and wired up in code (desktop, native Rust/iced). For what each setting actually does, see [Settings](/settings) and [Customizing Themes](/custom-themes).
+This page documents how settings and themes are stored and wired up in code (desktop: Tauri + Rust). For what each setting actually does, see [Settings](/settings) and [Customizing Themes](/custom-themes).
 
 ## Settings storage
 
-The desktop app is a single Rust binary — there's no `localStorage`. Most settings live as fields on the `App` struct ([`src/app/mod.rs`](https://github.com/fossisawesome/firmium/blob/main/src/app/mod.rs)), set from `view/settings.rs` controls and handled in `update/settings.rs`. A subset is persisted to `~/.config/<id>/config.toml` via [`src/config.rs`](https://github.com/fossisawesome/firmium/blob/main/src/config.rs)'s `Config` struct; everything else resets to its default on every launch. Last.fm/ListenBrainz credentials are stored in the OS keyring via `commands::credentials::save_password()`/`get_password()`.
+Settings are owned by Rust (`Core`, [`backend/core/settings.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/core/settings.rs)). Persisted values live in `<config dir>/config.toml` (the `Config` struct in [`backend/config.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/config.rs)); Last.fm/ListenBrainz secrets live in the OS keyring (service `firmium-desktop`). The UI holds a mirrored `Settings` object in the `settings` store and changes it only through `updateSetting(key, value)` (`src/lib/stores.ts`), which calls `Core::set_setting` and stores the returned snapshot. The webview's `localStorage` is not used for settings (only a first-run onboarding flag).
 
-| Setting | Storage | Default | Notes |
+| Setting (key) | Storage | Default | Notes |
 | --- | --- | --- | --- |
-| Window Decorations | `config.toml` `window_decorations` | shown | `update/settings.rs` toggles `App.window_decorations` and saves config; applied via iced's window API on next launch. Wayland-only caveat: no-op on compositors without server-side decoration support (Hyprland, Sway); works on GNOME/KDE/X11 |
-| Theme | `config.toml` `theme_id` | `"firmium"` | Themes are read by `commands::themes::list_themes()` ([`backend/commands/themes.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/commands/themes.rs)) |
-| UI Theme | `config.toml` `ui_theme_id` | `"default"` | Layout axis, independent of `theme_id` — see "UI theme internals" below |
-| Cover-Colored Visualizer | `config.toml` `viz_cover_colors` | on | `App::viz_config()` builds the visualizer gradient. When on and the current track has a cover, `maybe_fetch_viz_colors()` calls `commands::cover_colors::extract_cover_colors()` and the gradient cycles the extracted `OrbPalette`; when off (or no cover), it falls back to an accent-based ramp from the active theme's tokens |
-| Monstercat Smoothing | `config.toml` `viz_monstercat` | on | `Message::SetVizMonstercat` (handled in `update/transport.rs`) sets `App.viz_monstercat` and calls `VisualizerState::set_monstercat()` (`backend/visualizer.rs`). The FFT analysis task applies `monstercat_filter()` to each frame's raw bars before the existing per-bar EMA smoothing — an exponential-decay spread across neighboring bars (ported from cava/nokkvi) followed by a light Catmull-Rom pass, producing rounder peaks. Bars-mode only |
-| Crossfade | `App.crossfade_enabled` (session only — not persisted, defaults off each launch) | disabled | Mutually exclusive with Gapless; read by `queue_manager.rs` when deciding how to advance tracks |
-| Crossfade Duration | `App.crossfade_duration` (session only) | `5` (1-12 s) | Passed to `commands::playback::crossfade_to()` as `fade_duration_ms = duration * 1000` |
-| Crossfade Curve | `App` state → `commands::queue::set_crossfade_curve()` (session only) | `"linear"` | Sets `QueueStateInner::crossfade_curve` (`backend/commands/queue.rs`). `AudioPlayer::crossfade_to()` (`backend/audio/mod.rs`) reads it: `"logarithmic"` maps ramp position `t` to `10^((t-1)*2)` (equal-power approximation), `"linear"` uses `t` directly. Android: `AppPreferences.CROSSFADE_CURVE` / `PlayerViewModel.setCrossfadeCurve()`, applied in `AudioPlayer.crossfadeTo()` |
-| Gapless Playback | `App.gapless_enabled` (session only) | enabled | On track end, if gapless is on and crossfade isn't, `queue_manager.rs` calls `preload_stream()` then promotes the preloaded session. Mutually exclusive with Crossfade |
-| ReplayGain | `App.replay_gain_enabled` (session only) | enabled | Backed by `QueueStateInner::replay_gain_enabled`. When disabled, `replay_gain_db` returns `None` at all call sites in `queue.rs`/`queue_manager.rs` (initial play, crossfade, gapless preload). Android: `AppPreferences.REPLAY_GAIN_ENABLED` / `PlayerViewModel.setReplayGainEnabled()` |
-| Last.fm Integration | `App` state, toggled in Settings | disabled | When enabled, reveals API Key/Secret fields |
-| Last.fm API Key / Secret | OS keyring (`firmium-desktop` / `lastfm_key`, `lastfm_secret`) | - | Saved/loaded via `commands::credentials::save_password()`/`get_password()`, called from `update/settings.rs` |
-| External Lyrics (LRCLIB) | `config.toml` `lrclib_enabled` | enabled | Checked in `commands::subsonic::get_song_lyrics()` before falling back to the LRCLIB API (`commands/lyrics.rs`) |
-| Download Format | `config.toml` `download_format` | `"raw"` (original) | Passed as `format` to `commands::downloads::download_track`/`download_album` — see [Desktop Backend Internals](/desktop-backend-internals) |
-| Bit-Perfect Audio | `App.bit_perfect_mode` (session only) | `"relaxed"` | Calls `AudioPlayer::set_bit_perfect_mode()` (`backend/audio/mod.rs`). `"off"` disables stream reopening; `"relaxed"` (default) tries to match the track's native sample rate; `"strict"` does the same but disables crossfade |
-| Recap weekly auto-show | `data_dir`-adjacent state (desktop) / DataStore `recap_last_shown` (Android) | unset | Unix-millis timestamp of the last time Recap was surfaced; auto-opens if more than 7 days have passed, then the timestamp is rewritten |
-| Equalizer | `eq.toml` in the config dir | disabled / no profiles | `view/settings.rs`'s equalizer panel drives the EQ via `backend/commands/equalizer.rs` (`get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`). Profiles, per-device active-profile assignments, and the enable flag all live in `eq.toml`; the backend applies them through the biquad chain — see [Desktop Backend Internals](/desktop-backend-internals) |
+| Window Decorations (`windowDecorations`) | `config.toml` `window_decorations` | shown | Applied at startup in `src-tauri/src/lib.rs` and live via `set_window_decorations`. No-op on compositors without server-side decorations (Hyprland, Sway); works on GNOME/KDE/X11 |
+| Color Theme (`themeId`) | `config.toml` `theme_id` | `"firmium"` | Themes come from `commands::themes::list_themes()`; `applyAppearance()` writes them to CSS variables |
+| UI Theme (`uiThemeId`) | `config.toml` `ui_theme_id` | `"default"` | Layout axis, see "UI theme internals" |
+| Font (`fontFamily`) | `config.toml` `font_family` | `"Liberation Mono"` | Mapped to a CSS font stack by `fontStack()` in `stores.ts` |
+| Scrollbar Width (`scrollbarWidth`) | `config.toml` `scrollbar_width` | `10` (6-20) | `--scrollbar-width` |
+| Crossfade (`crossfadeEnabled`) | `config.toml` `crossfade_enabled` | off | Mutually exclusive with Gapless; also relaxes strict bit-perfect. Read by `queue_manager.rs` |
+| Crossfade Duration (`crossfadeDuration`) | `config.toml` `crossfade_duration` | `5` (1-12 s) | `queue::set_crossfade_settings` |
+| Crossfade Curve (`crossfadeCurve`) | `config.toml` `crossfade_curve` | `"linear"` | `QueueStateInner::crossfade_curve`. `AudioPlayer::crossfade_to()` (`backend/audio/mod.rs`): `"logarithmic"` maps ramp position `t` to `10^((t-1)*2)` (equal-power approximation), `"linear"` uses `t`. Android: `AppPreferences.CROSSFADE_CURVE` |
+| Gapless (`gaplessEnabled`) | `config.toml` `gapless_enabled` | on | On track end, if gapless is on and crossfade isn't, `queue_manager.rs` calls `preload_stream()` then promotes the preloaded session. Turning it on turns Crossfade off; strict bit-perfect turns it off |
+| ReplayGain (`replayGainEnabled`) | `config.toml` `replay_gain_enabled` | on | `QueueStateInner::replay_gain_enabled`; when off, `replay_gain_db` is `None` at every call site in `queue.rs`/`queue_manager.rs` |
+| Auto-continue (`autoContinue`) | `config.toml` `auto_continue` | off | `QueueStateInner::auto_continue`; `Core::start_auto_continue` reacts to `QueueExhausted` |
+| Bit-Perfect (`bitPerfectMode`) | `config.toml` `bit_perfect_mode` | `"relaxed"` | `AudioPlayer::set_bit_perfect_mode()`. `"off"` never reopens the stream; `"relaxed"` tries the track's native rate; `"strict"` also disables crossfade and gapless |
+| Volume (`volume`) | `config.toml` `volume` | `0.8` | `queue::set_queue_volume` |
+| External Lyrics (`lrclibEnabled`) | `config.toml` `lrclib_enabled` | on | Checked by `Core::lyrics` before `get_song_lyrics` falls back to LRCLIB (`commands/lyrics.rs`) |
+| Word-by-word lyrics (`lyricsWordFill`) | `config.toml` `lyrics_word_fill` | off | UI-only toggle; the timings come from `TimedLyrics` |
+| Download Format (`downloadFormat`) | `config.toml` `download_format` | `"raw"` | Read by the `download_track` / `download_album` commands, see [Desktop Backend Internals](/desktop-backend-internals) |
+| Last.fm (`lastfmKey`, `lastfmSecret`) | OS keyring (`lastfm_key`, `lastfm_secret`) | - | Stored via `commands::credentials`; the Settings toggle is derived from whether a key is set |
+| ListenBrainz (`listenbrainzToken`) | OS keyring (`listenbrainz_token`) | - | A stored token enables submission (`commands/listenbrainz.rs`) |
+| Equalizer | `eq.toml` in the config dir | disabled / no profiles | Driven via `backend/commands/equalizer.rs`; profiles, per-device assignments and the enable flag live in `eq.toml`, applied through the biquad chain, see [Desktop Backend Internals](/desktop-backend-internals) |
 
 ### Debug actions
 
 - **App Version**: calls `commands::app_info::get_app_version()`, returning `env!("CARGO_PKG_VERSION")`
 - **Wipe Cover-Art Cache**: calls `commands::cover_cache::clear_cover_cache()` (clears the on-disk cover cache, `~/.cache/<id>/covers/`)
-- **Reset Preferences**: deletes `config.toml` and resets `App` fields to their defaults
+- **Reset Settings**: `Core::reset_settings()` clears the preference fields in `config.toml` (accounts and connection are kept) and re-applies defaults to the queue state
 
-## Play history & Recap internals
+## Play history internals
 
-The Stats Export panel and Firmium Recap read from a local play-history store. No server calls are involved.
+The Stats Export panel reads from a local play-history store. No server calls are involved.
 
-- **Desktop** — a SQLite database (`play_history.db` in the app's data dir, `~/.local/share/<id>/`) managed by [`backend/db.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/db.rs)'s `PlayHistory`. A row is written on track completion from `queue_manager.rs` (`fire_record_play`, alongside `fire_scrobble`), so a play is recorded at the same moment it scrobbles. The `plays` table denormalizes track/artist/album names so Recap renders offline. Aggregation happens in SQL via `PlayHistory::recap()`/`summary()`; the UI calls `commands::stats::get_recap_stats`, `get_play_history_summary`, and `export_play_history` (`backend/commands/stats.rs`). Exports are written to a user-chosen path (via `rfd` in the UI layer) with `save_text_file`/`save_binary_file`.
-- **Android** — a Room database (`firmium_play_history.db`) in `data/db/` (`PlayEntity`, `PlayDao`, `FirmiumDatabase`, `PlayHistoryRepository`). Rows are inserted from `PlaybackController` at the same completion points that scrobble. The Stats Export panel (`SettingsScreen.kt`) and `RecapScreen.kt` read through `FirmiumApplication.playHistory`; exports and card images share via `FileProvider` (`ShareUtils.kt`).
-- **Recap UI** — desktop screen `view/recap.rs` (`recap_view`, toggled via `App` state), Android route `composable("recap")` → `RecapScreen.kt`. Card images are saved via `export.rs` (desktop) and a Compose `GraphicsLayer` (Android). Recap has no nav entry; it opens from Stats Export and the weekly auto-show.
+- **Desktop** — a SQLite database (`play_history.db` in the app's data dir, `~/.local/share/<id>/`) managed by [`backend/db.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/db.rs)'s `PlayHistory`. A row is written on track completion from `queue_manager.rs` (`fire_record_play`, alongside `fire_scrobble`), so a play is recorded at the same moment it scrobbles. The `plays` table denormalizes track/artist/album names so exports work offline. Aggregation happens in SQL via `PlayHistory::summary()`; the UI reaches it through `Core::history_summary`, `export_history` (`backend/core/stats.rs`). Exports are written to a user-chosen path (via a native save dialog opened from Rust, `tauri-plugin-dialog`) written by the shell (`export_history`).
+- **Android** — a Room database (`firmium_play_history.db`) in `data/db/` (`PlayEntity`, `PlayDao`, `FirmiumDatabase`, `PlayHistoryRepository`). Rows are inserted from `PlaybackController` at the same completion points that scrobble. The Stats Export panel (`SettingsScreen.kt`) reads through `FirmiumApplication.playHistory`; exports share via `FileProvider` (`ShareUtils.kt`).
 
 ## Theme internals
 
 Theme files are `.toml` files (see [Customizing Themes](/custom-themes) for the format and color reference). How they get from disk to the screen:
 
 - The filename (without `.toml`) becomes the theme's `id`, stored in `config.toml`'s `theme_id` and shown in Settings.
-- `commands::themes::list_themes()` ([`backend/commands/themes.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/commands/themes.rs)) reads the built-in themes — embedded into the binary at compile time via `include_dir!` (a single-binary native app has no resource-bundling step) — merges in any user themes from `~/.config/<id>/themes/`, and returns the combined list. A user theme with the same id as a built-in overrides it.
-- [`src/theme.rs`](https://github.com/fossisawesome/firmium/blob/main/src/theme.rs) parses a theme's `[colors]` table into `iced::Color`s and builds the `iced::Theme` consumed by every `view/*.rs` screen — there's no CSS or `:root` custom properties, since there's no web view.
+- `commands::themes::list_themes()` ([`backend/commands/themes.rs`](https://github.com/fossisawesome/firmium/blob/main/backend/commands/themes.rs)) reads the built-in themes — embedded into the binary at compile time via `include_dir!` (no resource-bundling step is needed, and it works on every platform) — merges in any user themes from `~/.config/<id>/themes/`, and returns the combined list. A user theme with the same id as a built-in overrides it.
+- On desktop the UI applies the chosen theme's `[colors]` table as CSS custom properties on `:root` (`applyAppearance()` in `src/lib/stores.ts`: `--bg`, `--surface`, `--accent`, ...), so every SCSS rule themes itself through those variables.
 
 ## UI theme internals
 
 UI Theme is a second, independent axis from color theme: it swaps layout/structure (nav placement, player bar composition, browsing-row size and headers), not colors. Any color theme can pair with either UI theme.
 
-- **Desktop** — `App.ui_theme_id: String` (`src/app/mod.rs`), persisted as `config.toml`'s `ui_theme_id`, set via `Message::SelectUiTheme` (`update/settings.rs`). Rather than one shared render path, screens branch on `self.ui_theme_id == "spotify"`: `app/mod.rs` has `sidebar_default()`/`sidebar_spotify()` (dispatched in `shell()`), `view/player_bar.rs` has `player_bar_default()`/`player_bar_spotify()`. Browsing screens (`view/{home,albums,artists,playlists,podcasts,search,mix}.rs`) don't fully duplicate — they parametrize existing row/card builders (cover size, font weight, padding) and swap section headers via `styles::page_header()`/`styles::shelf_label()`.
+- **Desktop** — the `uiThemeId` setting (`config.toml` `ui_theme_id`) sets `data-ui-theme` on `<html>` (`applyAppearance()`). All Spotify-style differences are CSS overrides scoped by `html[data-ui-theme='spotify']` in `src/styles/_spotify.scss` (pill buttons, rounded cards, larger artwork, darker player bar); the only markup difference is the "Your Library" playlist list in `Sidebar.svelte`.
 - **Android** — `AppPreferences.uiThemeId` (DataStore, values `"default"`/`"spotify"`), read once in `MainActivity.kt` and provided app-wide via `LocalUiTheme` (`ui/theme/Theme.kt`), so screens read `LocalUiTheme.current` directly instead of threading a parameter through every composable. `ui/components/PlayerBar.kt` and the bottom nav in `AppNavGraph.kt` (`FirmiumBottomBar`/`SpotifyBottomBar`) fully branch into separate composables; browsing screens read `LocalUiTheme.current` to size rows/cards and swap section-header text, same pattern as desktop.
-- Track/song row rendering (`track_row`/`song_row` desktop, `SearchTrackRow` etc. Android) and the Recap screen are shared across both UI themes — a plain numbered track row already reads as "Spotify-style," and Recap is its own bespoke card-story format unrelated to browsing layout.
+- Track/song row rendering (`TrackRow.svelte` desktop, `SearchTrackRow` etc. Android) is shared across both UI themes — a plain numbered track row already reads as "Spotify-style."

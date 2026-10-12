@@ -1,29 +1,25 @@
 # Desktop In-depth: Sidebar & Navigation
 
-What each control in the sidebar (`App::shell` in `src/app.rs`) does.
+The sidebar, view routing and the account modal.
 
-## Sidebar & Navigation (`App::shell`)
+## Routing (`src/lib/stores.ts`)
 
-- **Account icon** — calls `Message::ToggleAccountSwitcher`, opening `account_switcher_overlay`
-  as a modal `stack` over the current view (see below). There's no separate server-name label
-  in the sidebar itself; the connected server is shown inside that overlay.
-- **Navigation buttons** (`nav_button`) — one per `View`: Home, Albums, Artists, Playlists,
-  Search, Mix, Settings. Each calls `Message::Navigate(target)`, which updates `self.view` so
-  `App::view` swaps the rendered content (`content_view`). The button for the currently active
-  view is highlighted (accent color, bold label, `Message` comparison via `self.view == target`).
+View state is the only navigation state: `activeView` (`{ type, id? }`) plus a small history stack. `navTo(type, id?)` pushes the current view and sets the new one; `navBack()` pops. `App.svelte` renders the matching view inside `{#key}` so each navigation remounts it and refetches. View types: `home`, `favorites`, `albums`, `artists`, `search`, `playlists`, `genres`, `mix`, `podcasts`, `settings`, and the detail types `album`, `artist`, `playlist`, `podcast`, `genre`.
 
-## Account switcher overlay (`account_switcher_overlay`)
+## Sidebar (`components/Sidebar.svelte`)
 
-- If connected (`self.authed`), shows the server hostname (stripped of the `http(s)://`
-  scheme, read from `AppState.connection`) and a **Disconnect** button (`Message::Logout`):
-  clears the connection (`commands::subsonic::set_connection(state, None, None, None)`),
-  clears in-memory albums/search results, and reopens the account switcher so you land back on
-  the connect form. The app doesn't fall back to a local-library view automatically — see
-  [Library Views](/desktop-indepth-library-views) for the (currently nav-unreachable) offline
-  browsing code.
-- If not connected, shows the connect form: server URL, username, password, a **Save
-  Password** checkbox, and **Connect** (`Message::Connect`), which saves credentials to the OS
-  keyring (when the checkbox is on) and calls `commands::subsonic::set_connection`.
+- **Nav buttons**: Home, Favorites, Albums, Artists, Playlists, Podcasts, Search, Mix, Settings. A detail view highlights its parent (`PARENT` map), e.g. `album` highlights Albums.
+- **Server label**: the connected hostname, or "Local Files" when logged out (offline library).
+- **Account button**: sets `showAccountModal`.
+- **Spotify UI theme**: when `settings.uiThemeId === 'spotify'` the sidebar also lists local playlists under "Your Library" (`loadPlaylists`). Styling comes from `styles/_spotify.scss`, scoped by `html[data-ui-theme='spotify']`.
+- **Responsive**: `App.svelte` toggles `sidebar-collapsed` (icons only, under 900px) and `is-mobile-layout` (bottom tab bar, under 640px) on `<html>` via `matchMedia`.
+
+## Account modal (`AccountModal.svelte`, `Setup.svelte`)
+
+- Logged in: shows `user@host`, other saved accounts with a **Switch** button (`Api.switchAccount`), and **Disconnect** (`Api.logout`).
+- Logged out: the connect form (`Setup.svelte`) with saved accounts, server URL, username, password and a Save Password checkbox. `Api.connect` validates the credentials; on success `Core::connect` saves the password to the keyring (when asked), remembers the account in `config.toml`, and returns the new `AuthState`.
+- `setAuthState()` updates the `auth` store, refreshes `serverExtensions` and bumps `dataVersion` so views refetch.
+- Startup: `Api.autoLogin()` reads the last account's password from the keyring and connects. A switch to an account whose password is no longer stored fails with `Auth`, and the form is prefilled instead.
 
 ## See also
 

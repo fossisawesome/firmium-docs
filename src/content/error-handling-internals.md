@@ -1,6 +1,6 @@
 # Error Handling Internals
 
-This page documents how the Firmium desktop app turns backend failures into a single, consistent set of user-facing messages, and how those messages reach the screen as toasts. For the wider backend tour, see [Desktop Architecture](/architecture-overview).
+This page documents how the Firmium desktop app turns backend failures into a single, consistent set of user-facing messages, and how those messages reach the screen as toasts or inline errors. For the wider backend tour, see [Desktop Architecture](/architecture-overview).
 
 ## Overview
 
@@ -44,37 +44,26 @@ The session-expiry path is special. When `subsonic_request` sees a mid-session H
 
 The emitted event is what drives the app back to the login flow. The returned `UserError::SessionExpired` is carried in the failed command's result so the UI can recognize it and decline to toast it (see below).
 
-## The toast surface in `src/app.rs`
+## The toast surface (`src/lib/stores.ts`)
 
-Command results that can fail carry a `UserError`: the `Message::*Loaded(Err)` variants hold `UserError` rather than a string.
+Failed commands reject with a `CmdError` (`src-tauri/src/commands.rs`): `{ kind, message }`, where `kind` is the `UserError` variant name (`Network`, `Timeout`, `Auth`, `SessionExpired`, ...) and `message` is `UserError::message()`. Plain `String` errors from the backend become `kind: "Unknown"`.
 
-A small toast surface presents them:
+The UI presents them with a small toast stack:
 
-```rust
-struct Toast {
-    id: u64,
-    category: ToastCategory,
-    text: String,
-    spawned: Instant,
-}
+```ts
+export interface Toast { id: number; text: string }
+export function toast(text: string, ms = 4000): void
+export function toastError(e: unknown): void   // ignores SessionExpired
 ```
 
-`App` holds a `toasts: Vec<Toast>` field. New toasts go through `show_toast()`, which applies three rules:
-
-- It suppresses `UserError::SessionExpired`. Mid-session expiry is already owned by the `SessionExpired` event flow, which moves the app to the login screen, so a toast on top of that would be redundant.
-- It coalesces by category, so a burst of the same kind of failure (for example several requests timing out at once) shows a single toast rather than a stack of duplicates.
-- It caps the visible stack at 3, so a cascade of failures cannot bury the UI.
-
-Rendering is done by `toast_host()`, overlaid on the rest of the UI with `stack!` in the top-level `view()`. Because the overlay sits at the top level, toasts appear over both the login screen and the connected shell. Each toast has a close button for manual dismissal.
-
-Auto-dismissal is driven by a `ToastTick` subscription using `iced::time::every(500ms)`. On each tick the app drops toasts older than 5 seconds. The 500ms cadence is a balance between prompt dismissal and idle wakeups; the 5 second lifetime is the visible duration.
+`toastError()` is the catch handler for most calls (`Api.x().catch(toastError)`). It skips `kind === 'SessionExpired'` because the `session-expired` event already handles that case. `components/Toasts.svelte` renders the `toasts` store as a fixed stack over the whole UI, so toasts appear above both the login modal and the shell; each toast removes itself after its timeout.
 
 ## The SessionExpired versus toast split
 
 Initial-login auth failure and mid-session session expiry are both authentication problems, but they are handled differently on purpose.
 
-- A failed login attempt returns a `UserError` that reaches `show_toast()` and is shown as a toast. The old inline `connect_error` banner on the login screen was removed; login failures now surface through the same toast path as everything else. There is no other flow that owns this case, so the toast is the notification.
-- A mid-session 401 (or OpenSubsonic 40/41) emits `BackendEvent::SessionExpired`, and that existing event flow already takes the user to the login screen. The matching `UserError::SessionExpired` is therefore suppressed in `show_toast()`, so the user sees the login screen rather than a login screen plus a toast describing the same thing.
+- A failed login attempt returns a `UserError` that is shown inline under the login form (`Setup.svelte` writes `errorMessage(e)` into its error line); other failures use the toast path.
+- A mid-session 401 (or OpenSubsonic 40/41) emits `BackendEvent::SessionExpired`, and that existing event flow already takes the user to the login screen. The `session-expired` Tauri event makes `stores.ts` log out and open the account modal (it also shows one explanatory toast); `toastError()` suppresses the `SessionExpired` rejection itself so the user doesn't get a second message.
 
 The rule of thumb: if another flow already reacts visibly to the error, the toast is suppressed; otherwise the toast is the user-visible signal.
 

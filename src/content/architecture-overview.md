@@ -1,73 +1,70 @@
 # Desktop Architecture
 
-This page is a tour of how the Firmium desktop app is built, for anyone who wants to read the code, fix a bug, or add a feature. For a higher-level introduction to the whole project (including the Android app), see the [Developer Overview](/developer-overview).
+A tour of how the Firmium desktop app is built, for anyone who wants to read the code, fix a bug, or add a feature. For the whole project (including Android), see the [Developer Overview](/developer-overview).
 
 ## Desktop app
 
-The desktop app is a native [iced](https://iced.rs) (Rust) application — a single binary, no web view and no JavaScript. `firmium/` is a Cargo workspace: the UI (`desktop/`) and the backend (`backend/`: audio engine, OpenSubsonic client, database, queue manager) are separate crates, so the same backend also powers the [Termium](/termium-architecture) terminal client. The UI calls backend functions directly via `iced::Task`, and the backend pushes playback/queue events back to the UI over an in-process event bus.
+The desktop app is a [Tauri 2](https://tauri.app) application. The window is a webview showing a Svelte 5 UI (`src/`, TypeScript + SCSS) that only renders. All logic is Rust. `firmium/` is a Cargo workspace: the backend (`backend/`: audio engine, OpenSubsonic client, database, queue manager, app logic), the Tauri shell (`src-tauri/`) and the [Termium](/termium-architecture) terminal client (`termium/`). The shell and Termium both depend on the same `backend` crate.
 
 ```
 firmium/
-  Cargo.toml          workspace root (members: backend, desktop, termium)
-  backend/            lib crate "firmium-backend" — no UI dependency
+  Cargo.toml          workspace root (members: backend, src-tauri, termium)
+  package.json        Vite + Svelte + sass toolchain for src/
+  backend/            lib crate "firmium-backend" - no UI dependency
+    core/             App logic shared by UI shells (Core): settings, accounts,
+                      library (server/offline routing, Mix, radio, podcasts),
+                      playlists (local-first + server sync), stats
     init.rs           Backend::new(): builds the shared handles, starts queue_manager
-    events.rs         EventBus (tokio broadcast) — replaces the old emit/listen
-    paths.rs          App data / config / cache directories
-    state.rs          AppState: connection info + shared async HTTP client + event bus
-    config.rs         ~/.config/<id>/config.toml (server, theme, volume)
+    events.rs         EventBus (tokio broadcast)
+    state.rs          AppState: connection + async HTTP client + event bus
+    config.rs         <config dir>/config.toml (server, theme, accounts, playback prefs)
     queue_state.rs    QueueState: authoritative queue / playback settings
-    queue_manager.rs  Background task draining the bus: crossfade, gapless preload,
-                      track advance, scrobbling
-    commands/         Plain async/sync fns: auth, credentials, themes, playback,
-                      mappers, subsonic (OpenSubsonic API), lyrics, cover_cache,
-                      cover_colors, local_library, downloads, equalizer, stats, queue,
-                      playlists (best-effort server sync of local playlists)
-    audio/            Audio playback: `symphonia` (decode) + `cpal` (output)
-  desktop/            bin crate "firmium" — iced UI
-    src/
-      main.rs           Entry point: builds the backend, runs iced::application
-      app/              App struct (all UI state), Message enum, update(), view()
-                        -- split by feature: types.rs, message.rs, mod.rs (App
-                        struct + top-level view), update/*.rs (one match arm
-                        group per feature domain: auth, library, playlists,
-                        search, settings, equalizer, mix, transport,
-                        queue_resume, recap, podcasts, nav), view/*.rs (one
-                        screen per file: home, albums, artists, playlists,
-                        genres, podcasts, search, recap, settings, mix, panels,
-                        player_bar, overlays), plus styles.rs, format.rs,
-                        cover.rs, viz_colors.rs, subscription.rs, export.rs
-      theme.rs          TOML theme tokens -> iced Theme + dynamic accent
-      icons.rs          Bundled SVG icon set (recolored per theme)
-      viz/              GPU visualizer (wgpu shader widget: Bars / Lines / Scope)
-      playlists.rs      Local-first playlists + ~/.config/<id>/playlists.json
-  termium/            bin crate "termium" — TUI frontend, see Termium Architecture
-  themes/             Built-in color theme files (.toml), embedded at compile time
+    queue_manager.rs  Background task: crossfade, gapless preload, advance, scrobble
+    commands/         Plain fns: subsonic (OpenSubsonic API), queue, lyrics,
+                      cover_cache, local_library, downloads, equalizer, themes, ...
+    podcasts/         RSS fetch/parse + podcasts.db
+    audio/            symphonia decode + cpal output
+  src-tauri/          bin crate "firmium" - Tauri shell
+    src/lib.rs        Builder: creates Core inside the async runtime, registers commands
+    src/commands.rs   Thin #[tauri::command] forwarders (errors -> {kind, message})
+    src/events.rs     EventBus -> Tauri events
+    src/cli.rs        `firmium <cmd>` control-socket client
+  src/                Svelte UI
+    App.svelte        Shell: layout, startup login, drag-drop import
+    views/            One screen per file
+    components/       Player bar, side panels, rows, modals
+    lib/              api.ts (invoke wrappers), stores.ts (state mirrors), ipc.ts, types.ts
+    styles/           SCSS partials, main.scss @uses them
+  termium/            bin crate "termium" - TUI frontend
+  themes/             Built-in color themes (.toml), embedded in the backend
 ```
 
-**How a screen works**: each view is a method on `App`, defined in the matching `desktop/src/app/view/*.rs` file (e.g. `home_view` in `view/home.rs`, `settings_view` in `view/settings.rs`), that reads `App` state and returns an iced `Element`; `view/mod.rs` just routes to the right one for the current `View`. User actions emit a `Message`; `App::update` in `desktop/src/app/update/mod.rs` dispatches each variant (via grouped match arms) to a `update_<domain>` method in the matching `update/*.rs` file (e.g. playlist messages go to `update/playlists.rs`), which usually spawns a backend call with `iced::Task::perform` (e.g. `commands::subsonic::get_albums`) whose result arrives as another `Message`. The backend holds the active connection (server URL, username, password) in `AppState`, builds authenticated OpenSubsonic requests, and maps JSON responses to typed structs via `commands/mappers.rs`. Long lists (albums, artists, and album/playlist track lists) use a windowed renderer (`list_window` in `desktop/src/app/cover.rs`) that only builds the rows currently on screen.
+**How a screen works**: a view in `src/views/` calls a typed wrapper in `src/lib/api.ts` (one line over `invoke`). `src-tauri/src/commands.rs` forwards it to a `Core` method (or a `backend::commands` function), which does the work and returns a serializable struct. Views keep that result in local `$state`. Nothing in TypeScript decides *what* to fetch or *how* to combine results beyond filtering a list for display; for example `Core::albums()` picks the server or the offline library depending on whether you're logged in.
 
-**Cover art and lyrics**: cover art is cached to disk (`get_cover_art` in `commands/cover_cache.rs`, 200MB budget with LRU eviction) and loaded into an `iced::widget::image::Handle` cached in the `App`, so covers persist across restarts without re-downloading. Lyrics go through a cascade in `commands/subsonic.rs::get_song_lyrics`: OpenSubsonic structured lyrics, then legacy plain-text lyrics, then (if enabled) an LRCLIB lookup; the Lyrics panel highlights the active line by playback position. (The dominant cover color used for accenting is still extracted in Rust by `commands/cover_colors.rs`.)
+**Events**: backend tasks emit `BackendEvent`s on the bus; `src-tauri/src/events.rs` re-emits them as Tauri events (`playback-state-changed`, `playback-position`, `playback-finished`, `queue-state-changed`, `session-expired`). `initBackend()` in `src/lib/stores.ts` subscribes and mirrors them into Svelte stores; the player bar and panels read those stores.
 
-**Session expiry**: if the server returns HTTP 401 or an OpenSubsonic error code 40/41, the backend emits `BackendEvent::SessionExpired` on the event bus; `App` clears the authed state and returns to the login screen.
+**Cover art and lyrics**: `Core::cover_path` resolves a cover id to a file path (embedded art for `local:` ids, the 200 MB LRU disk cache in `commands/cover_cache.rs` for server ids, and plain image URLs for podcasts). The UI turns the path into a URL with `convertFileSrc` (asset protocol) in the `use:cover` action (`src/lib/cover.ts`). Lyrics go through the cascade in `commands/subsonic.rs::get_song_lyrics` (structured, legacy, then LRCLIB if enabled); `Core::lyrics` adds per-word timing for the karaoke fill (`TimedLyrics`).
 
-**Playlists**: playlists are local-first. `desktop/src/playlists.rs` holds the `Playlist` model and persists the whole list to `~/.config/<id>/playlists.json`; `App` merges it with the server's `getPlaylists` result into one list (local playlists first, then server-only ones). Create, rename, delete, add, reorder, and remove mutate the in-memory list in `App::update`, then `backend/commands/playlists.rs` pushes the change to the server best-effort (errors logged, not surfaced). Unsynced playlists retry on the next Playlists view open, adopting a same-named server playlist instead of creating a duplicate. See [Desktop In-depth: Playlists](/desktop-indepth-playlists).
+**Session expiry**: on HTTP 401 or OpenSubsonic error 40/41 the backend emits `SessionExpired`; `stores.ts` logs out and opens the account modal.
 
-**Local library and downloads**: `backend/commands/local_library.rs` scans `~/Music/Firmium` and maps the files it finds into the same `Album`/`Artist`/`Song` shapes used by the OpenSubsonic API, so the views work whether or not you're connected to a server. `backend/commands/downloads.rs` downloads tracks/albums from the server into that same folder (honoring the Download Format setting); both invalidate `local_library.rs`'s scan cache so the local library picks up the new files.
+**Playlists**: local-first. `backend/core/playlists.rs` owns the model, persists `playlists.json` and pushes changes to the server best-effort. Every playlist command returns the updated local list. See [Desktop In-depth: Playlists](/desktop-indepth-playlists).
 
-**How playback works**: when you select a track, `App::update` calls a backend queue function (`set_queue`, `set_queue_seamless`, `shuffle_and_play`, `play_queue_index`, ...) in `backend/commands/queue.rs`. The backend resolves the stream URL (checking for a local file match before falling back to a Subsonic stream URL), calls `AudioPlayer::play_stream` in `backend/audio/`, and emits `QueueStateChanged` on the bus so the UI updates. The `queue_manager` task subscribes to the bus: it reacts to `PlaybackPosition` events to trigger crossfade and gapless preload at the right time, and to `PlaybackFinished` events to advance the queue, scrobble, and handle repeat/shuffle. The audio engine (`backend/audio/`) streams from your server, decodes with `symphonia`, and plays through `cpal` at the track's native sample rate.
+**Local library and downloads**: `commands/local_library.rs` scans `~/Music/Firmium` into the same `Album`/`Artist`/`Song` shapes as the server API, which is why the same views work offline. `commands/downloads.rs` downloads into that folder using the Download Format setting and invalidates the scan cache.
 
-**Visualizer**: `backend/visualizer.rs` runs FFT analysis on a background task and stores the latest `bass`/`bars`/`wave` snapshot. `desktop/src/viz/` renders it as a GPU `wgpu` shader widget (`iced::widget::shader::Program`, not a CPU canvas) in one of three modes — Bars, Lines, Scope — with a full post-processing chain (bloom, motion trails, Milkdrop-style echo feedback, CRT scanlines) and a CPU particle system for Scope's spark field. See [Desktop Backend Internals](/desktop-backend-internals#visualizer) for the module layout and data flow.
+**Playback**: a view calls `Api.setQueueSeamless(songs, idx)` (or `setQueue`, `shuffleAndPlay`, `playIndex`, ...), which reaches `backend/commands/queue.rs`. The backend resolves the stream URL (local file, podcast URL from `AppState.external_streams`, or Subsonic stream), calls `AudioPlayer::play_stream`, and emits `QueueStateChanged`. `queue_manager` reacts to `PlaybackPosition` for crossfade and gapless preload and to `PlaybackFinished` to advance, scrobble and record history. Podcast episodes use the same path with ids like `podcast:<id>`.
 
-**How themes work**: theme files are TOML — either the built-ins under `themes/` (compiled into the binary) or files the user drops in their config directory. `list_themes` in `backend/commands/themes.rs` merges both sets, and `desktop/src/theme.rs` parses the chosen theme's tokens into iced `Color`s. See [Settings & Themes Internals](/settings-themes-internals) for the full mechanism.
+**Mix, Radio and auto-continue**: `Core::generate_mix`, `Core::start_radio` and the background task in `Core::start_auto_continue` share `Core::seed_from` (similar tracks, then genre + BPM from the library). See `backend/core/library.rs`.
 
-**Play history and Recap**: a local SQLite database (`backend/db.rs`, `play_history.db` in the app data dir) records one row per completed track, written from `queue_manager.rs` at the same point it scrobbles. The aggregation queries are exposed through `backend/commands/stats.rs` and power the Stats Export panel and Firmium Recap. It's local-only — no server calls. See [Settings & Themes Internals](/settings-themes-internals#play-history--recap-internals).
+**Themes**: TOML files under `themes/` are embedded in the backend; `list_themes` merges them with user files. The UI applies the chosen theme as CSS variables (`applyAppearance` in `stores.ts`). See [Settings & Themes Internals](/settings-themes-internals).
 
-**Podcasts**: handled entirely client-side, independent of the OpenSubsonic connection — Navidrome implements no server-side podcast endpoints ([navidrome/navidrome#793](https://github.com/navidrome/navidrome/issues/793)). Desktop: `backend/podcasts/` fetches and parses RSS feeds directly via `feed-rs`, storing subscriptions and episodes in a dedicated `podcasts.db` sqlite file (same pattern as play history above). Android: `data/podcast/` does the equivalent with a hand-rolled `XmlPullParser`-based feed parser and Room entities in `FirmiumDatabase`. Episodes play through the existing audio pipeline as plain stream URLs — no new playback code was needed. Subscriptions are local-only, no cross-device sync.
+**Play history**: `backend/db.rs` records one row per completed track (`play_history.db`); `backend/core/stats.rs` exposes the history summary and export. Local-only.
 
-**Updates**: `.deb`/`.rpm`/COPR/AUR users update via their package manager. The in-app self-updater (Linux AppImage / Windows) is being reworked for the native build.
+**Podcasts**: client-side, independent of the OpenSubsonic connection (Navidrome has no podcast endpoints, [navidrome/navidrome#793](https://github.com/navidrome/navidrome/issues/793)). `backend/podcasts/` fetches RSS with `feed-rs` into `podcasts.db`. Android does the equivalent natively.
+
+**Updates**: `.deb`/`.rpm`/COPR/AUR users update through their package manager. There is no in-app updater.
 
 ## Going further
 
-For a control-by-control walkthrough of the UI (player bar, sidebar, library views, playlists, settings) and the data flow behind it, see [Desktop In-depth](/desktop-indepth-overview).
+For the screens and the code behind each, see [Desktop In-depth](/desktop-indepth-overview).
 
-If your change affects settings, themes, or how the app is built/packaged, remember to update the relevant docs page too: [Settings](/settings), [Customizing Themes](/custom-themes), [Settings & Themes Internals](/settings-themes-internals), or [Building from Source](/building-from-source).
+If your change affects settings, themes, or how the app is built or packaged, update [Settings](/settings), [Customizing Themes](/custom-themes), [Settings & Themes Internals](/settings-themes-internals) or [Building from Source](/building-from-source) too.

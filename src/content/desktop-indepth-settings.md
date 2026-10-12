@@ -1,99 +1,56 @@
 # Desktop In-depth: Settings
 
-What each control in the Settings screen does, and where it lives in the native
-iced code. The whole screen is built in `src/app/view/settings.rs` — there is no Svelte. For how
-settings and themes are stored and wired up internally, see
-[Settings & Themes Internals](/settings-themes-internals).
+What each control in the Settings screen does and where it lives. The screen is `src/views/Settings.svelte`; every change goes through `updateSetting(key, value)` in `src/lib/stores.ts` → `Api.setSetting` → `Core::set_setting` (`backend/core/settings.rs`), which applies the side effect, persists, and returns the full `Settings`. For storage details see [Settings & Themes Internals](/settings-themes-internals).
 
-## Layout (`settings_view` in `src/app/view/settings.rs`)
+## Layout
 
-`settings_view` renders a two-column layout: a fixed 180px category rail on the
-left (a `column` of category buttons driving `Message::SetSettingsCategory`) and,
-to the right, the active category's content panel. The selected category is held
-on `App` as `settings_category: SettingsCategory` (enum: `Appearance`, `Playback`,
-`Equalizer`, `Downloads`, `Services`, `Account`, `Debug`). Each category's content
-is produced by its own method (`settings_appearance`, `settings_playback`, …),
-and every row uses the `sett_row(title, desc, control)` / `sett_panel_title(title)`
-helpers for consistent styling.
+A fixed category rail (Appearance, Playback, Equalizer, Downloads, Services, Stats, Account, Debug) and the active category's panel. The selected category is local component state. Dropdowns and toggles are Svelte snippets (`dropdown`, `toggle`) reused across rows.
 
-## Appearance (`settings_appearance`)
+## Appearance
 
-- **Theme** — a grid of theme swatches (`theme_swatch`), built from
-  `self.themes` (`commands::themes::list_themes`). Selecting one applies its colors
-  immediately and persists `theme_id` to config.
-- **Window Decorations** — toggles the native title bar/borders via
-  `Message::SetDecorations`. winit only supports *toggling* at runtime, so the
-  handler calls `iced::window::toggle_decorations` on the latest window; the
-  persisted value (`config.window_decorations`) is applied at boot in `src/main.rs`
-  through `iced::application(...).decorations(...)`.
+- **Window Decorations**: `windowDecorations` setting; `updateSetting` also calls `Api.setWindowDecorations` (`WebviewWindow::set_decorations`), and `lib.rs` applies the saved value at startup. On wlroots-based Wayland compositors (Hyprland, Sway) server-side decorations may be ignored, so the toggle can be a visible no-op there.
+- **Color Theme**: `themeId`; `applyAppearance()` writes the theme's colors to CSS variables on `:root`.
+- **UI Theme**: `uiThemeId` (`default` or `spotify`); sets `data-ui-theme` on `<html>`, which `styles/_spotify.scss` keys off.
+- **Font**: `fontFamily`, from `FONT_OPTIONS` in `stores.ts`; bundled fonts are declared in `styles/_fonts.scss`.
+- **Scrollbar Width**: `scrollbarWidth` (6-20), exposed as `--scrollbar-width`.
 
-  On Wayland, winit requests server-side decorations (`WindowDecorations::RequestServer`
-  in `winit`'s wayland backend) and `toggle_decorations` calls the compositor's
-  `set_decorations` — but the compositor can silently ignore it. wlroots-based
-  compositors (Hyprland, Sway) generally don't implement SSD, so there's no title
-  bar to toggle and the setting is a visible no-op there. GNOME/KDE and X11
-  (including XWayland) honor it correctly.
+## Playback
 
-## Playback (`settings_playback`)
+- **Crossfade** / **Duration** / **Curve**: `crossfadeEnabled`, `crossfadeDuration` (1-12 s), `crossfadeCurve` (`linear` or `logarithmic`) → `queue::set_crossfade_settings` / `set_crossfade_curve`. Enabling crossfade turns gapless off and relaxes strict bit-perfect.
+- **Gapless**: `gaplessEnabled`. Enabling it turns crossfade off.
+- **ReplayGain**: `replayGainEnabled` → `queue::set_replay_gain_enabled`.
+- **Auto-continue (Smart Radio)**: `autoContinue` → `queue::set_auto_continue`; the seeding task is `Core::start_auto_continue`.
+- **Bit-Perfect Audio**: `bitPerfectMode` (`off` / `relaxed` / `strict`) → `AudioPlayer::set_bit_perfect_mode`. Strict also disables gapless.
 
-- **Crossfade** — toggle (`Message::SetCrossfadeEnabled`); when on, a **Crossfade
-  Duration** slider (1–12 s) appears. Both call
-  `commands::queue::set_crossfade_settings`.
-- **Gapless Playback** — `commands::queue::set_gapless_enabled`.
-- **ReplayGain** — `commands::queue::set_replay_gain_enabled`.
-- **Auto-continue (Smart Radio)** — `commands::queue::set_auto_continue`.
-- **Bit-Perfect Audio** — a segmented Off / Relaxed / Strict control
-  (`Message::SetBitPerfect` → `AudioPlayer::set_bit_perfect_mode`).
+All playback settings persist in `config.toml` and are restored at startup by `Core::apply_persisted_playback` (`queue::init_playback_settings`).
 
-## Equalizer (`settings_equalizer`)
+## Equalizer
 
-This category is a redirect: an **Open Equalizer** button toggles the dedicated EQ
-side panel (`Message::TogglePanel(Panel::Equalizer)`), rendered by `App::eq_panel`.
-The EQ itself is driven through `commands::equalizer` (`set_eq_enabled`,
-`set_eq_active_profile`, `save_eq_profile`, `set_eq_bands`, …) and persists to
-`eq.toml`. DSP details: see [Backend Internals](/desktop-backend-internals).
+Embeds `components/EqualizerSettings.svelte` (the same component as the side panel). It calls `get_eq_state`, `save_eq_profile`, `set_eq_bands`, `set_eq_active_profile`, `set_eq_enabled`, `delete_eq_profile` and persists to `eq.toml`; see [Backend Internals](/desktop-backend-internals) for the DSP.
 
-## Downloads (`settings_downloads`)
+## Downloads
 
-- **Download Format** — segmented control (Original / MP3 / FLAC / WAV / Opus).
-  The selection is stored in `config.download_format` and threaded into
-  `commands::downloads::download_track` and `download_album` as their `format`
-  argument. "Original" maps to `raw` (the file exactly as stored on the server).
+- **Download Format**: `downloadFormat` (`raw` = Original, `mp3`, `flac`, `wav`, `opus`), read by `download_track` / `download_album` in Rust.
+- **Import Local Files**: `pick_and_import` opens a native file dialog (`tauri-plugin-dialog`, called from Rust) and copies the files into `~/Music/Firmium`.
 
-## Services (`settings_services`)
+## Services
 
-- **Last.fm Integration** — toggle plus **API Key** and **Secret** fields. Values
-  are saved to the OS keyring (service `firmium-desktop`, keys `lastfm_key` /
-  `lastfm_secret`) via `commands::credentials::save_password`. When a key is set,
-  `commands::subsonic::get_artist_info` overlays a richer bio (and any
-  non-placeholder image) from Last.fm's `artist.getInfo` over the server baseline.
-- **ListenBrainz Scrobbling** — toggle plus a **Token** field, saved to the keyring
-  (`listenbrainz_token`). Presence of the token is what enables submission;
-  `queue_manager` calls `commands::listenbrainz::fire_listenbrainz_listen` on track
-  completion, which reads the token from the keyring.
-- **External Lyrics (LRCLIB)** — toggle stored in `config.lrclib_enabled`, passed as
-  the `use_lrclib_fallback` argument to `commands::subsonic::get_song_lyrics`.
-- **Word-by-Word Lyrics Animation** — toggle stored in `config.lyrics_word_fill`.
-  When on, `App::lyrics_panel` renders the active synced line as a karaoke fill.
-  LRC carries only line-level timing, so per-word progress is approximated by
-  distributing the line's time window evenly across its words.
+- **Last.fm**: `lastfmKey` / `lastfmSecret` are stored in the OS keyring (service `firmium-desktop`, keys `lastfm_key` / `lastfm_secret`), not in `config.toml`. The on/off switch is UI state derived from whether a key exists; turning it off clears both. With a key, `get_artist_info` overlays Last.fm's bio and `artist_recommendations` can use `artist.getsimilar`.
+- **ListenBrainz**: `listenbrainzToken` in the keyring; a stored token enables submission (`commands/listenbrainz.rs`).
+- **LRCLIB**: `lrclibEnabled`, read by `Core::lyrics`.
+- **Word-by-word lyrics**: `lyricsWordFill`. LRC has only line timing, so `TimedLyrics` (`backend/core/library.rs`) spreads each line's window across its words by character length.
 
-## Account (`settings_account`)
+## Stats
 
-- **Connection** — shows `username @ server` (read from `AppState.connection`) with
-  a **Log out** button (`Message::Logout`), or **Connect**
-  (`Message::ToggleAccountSwitcher`) when signed out.
-- **Listening Stats** — the play-history summary (`self.history_summary`) with
-  **Export CSV** / **Export JSON** (`Message::ExportStats`) and **View Recap**.
+Shows the history summary (`Api.historySummary`), and **Export** CSV/JSON (`Api.exportHistory` serializes in Rust and opens a save dialog).
 
-## Debug (`settings_debug`)
+## Account
 
-- **App Version** — `commands::app_info::get_app_version`.
-- **Wipe Cache** — `Message::WipeCoverCache` → `commands::cover_cache::clear_cover_cache`
-  (also clears the in-memory `cover_cache`).
-- **Delete Settings** — `Message::DeleteSettings` resets preference fields to their
-  defaults (connection and saved accounts are left untouched) and re-pushes them to
-  the backend queue state.
+Connection status with **Disconnect** / **Connect**, and a button into the account modal for saved accounts.
+
+## Debug
+
+**App Version** (`get_app_version`), **Wipe Cover Cache** (`clear_cover_cache`), **Reset Settings** (`Core::reset_settings`; connection and accounts are kept).
 
 ## See also
 

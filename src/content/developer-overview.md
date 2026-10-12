@@ -6,7 +6,7 @@ This page is a starting point for anyone who wants to read the Firmium code, fix
 
 Firmium is split across a few repositories:
 
-- **firmium**: the actual app — both the Linux/Windows desktop app and the Android app live here.
+- **firmium**: the actual app. The desktop app (Linux/Windows/macOS), Termium and the Android app live here.
 - **firmium-site**: the marketing/showcase website for Firmium.
 - **firmium-docs**: this documentation site.
 
@@ -16,7 +16,7 @@ This page (and the rest of the Developer section) is about the `firmium` repo.
 
 Firmium ships as two separate apps that aim to feel like the same product:
 
-- **Desktop** (Linux/Windows) — a native [iced](https://iced.rs) (Rust) app: a single binary, no web view and no JavaScript, with audio playback (`symphonia` + `cpal`) and OS integration in the same process.
+- **Desktop** (Linux/Windows) — a [Tauri 2](https://tauri.app) app. A Svelte + SCSS + TypeScript UI renders in a webview; all logic (playback with `symphonia` + `cpal`, OpenSubsonic client, settings, playlists, stats) is Rust, reached through Tauri commands. There is also a terminal client, [Termium](/termium-architecture), sharing the same backend.
 - **Android** — a native Kotlin + Jetpack Compose app, built independently with Gradle, using Media3/ExoPlayer for playback.
 
 They're built with completely different tech stacks, but both implement the same core ideas:
@@ -31,7 +31,7 @@ Whenever a change adds or changes a user-facing feature on one platform, check w
 
 ## Where to go next
 
-- [Desktop Architecture](/architecture-overview) and [Desktop In-depth](/desktop-indepth-overview) — iced/Rust app structure, screens, and what each UI control does.
+- [Desktop Architecture](/architecture-overview) and [Desktop In-depth](/desktop-indepth-overview) — Tauri/Rust/Svelte app structure, screens, and what each UI control does.
 - [Android Architecture](/android-architecture) and [Android In-depth](/android-indepth-overview) — Kotlin/Compose app structure, screens, and what each UI control does.
 - [Building from Source](/building-from-source) — set up a dev environment for either platform.
 - [Settings & Themes Internals](/settings-themes-internals) — how settings and themes are stored and wired up (desktop).
@@ -40,9 +40,9 @@ Whenever a change adds or changes a user-facing feature on one platform, check w
 
 A typical workflow:
 
-1. Run the app locally with `cargo run` (desktop) or `./gradlew installDebug` (Android). See [Building from Source](/building-from-source) for full setup.
-2. For UI changes, find the relevant screen in `src/app/view/*.rs` (desktop) or the matching screen/composable in `android/app/src/main/java/...` (Android).
-3. For changes to how data is fetched or stored, look in `backend/commands/subsonic.rs` and `backend/state.rs` (desktop) or the equivalent ViewModel/repository classes (Android).
+1. Run the app locally with `npm run tauri dev` (desktop) or `./gradlew installDebug` (Android). See [Building from Source](/building-from-source) for full setup.
+2. For UI changes, find the relevant screen in `src/views/` (desktop) or the matching screen/composable in `android/app/src/main/java/...` (Android).
+3. For changes to how data is fetched or stored, look in `backend/core/` and `backend/commands/subsonic.rs` (desktop; logic belongs in Rust, the UI only calls `src/lib/api.ts`) or the equivalent ViewModel/repository classes (Android).
 4. For audio/playback changes, the desktop logic is split between `backend/commands/queue.rs`/`queue_manager.rs` (when to do what) and `backend/audio/` (how it's actually played); Android playback is handled by `audio/AudioPlayer` and `audio/NowPlayingService`.
 
 If your change affects settings, themes, or how the app is built/packaged, remember to update the relevant docs page too: [Settings](/settings), [Customizing Themes](/custom-themes), [Settings & Themes Internals](/settings-themes-internals), or [Building from Source](/building-from-source).

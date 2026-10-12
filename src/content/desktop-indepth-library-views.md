@@ -1,63 +1,32 @@
 # Desktop In-depth: Library Views
 
-What each control in the library views (`src/app.rs`) does. The whole desktop UI is one
-Rust crate — there are no separate component files; each "view" below is a method on `App`
-returning an `iced::Element`.
+The library screens in `src/views/` and the backend calls behind them. Long lists use `src/lib/VirtualList.svelte`, which only renders the rows in the scroll viewport.
 
-## Library views (`src/app.rs`)
+## Views
 
-- **Album grid** (`album_list_view` / `album_row`) — fetches and lists albums (windowed:
-  only the visible rows are built via the `list_window` helper). Clicking a row navigates to
-  `View::AlbumDetail`.
-- **Artist list** (`artists_view` / `artist_row`) — same windowed-list pattern for artists.
-  Clicking a row navigates to `View::ArtistDetail`.
-- **Album detail** (`album_detail_view`) — cover, title, track count, and **Play**
-  (`Message::PlayAlbumAt(0)`), **Shuffle** (`Message::ShuffleAlbum`, calls
-  `commands::queue::shuffle_and_play` with the album's tracks), and **Download**
-  (`Message::DownloadAlbum`) buttons above the track list.
-- **Artist detail** (`artist_detail_view`) — name, album count, Last.fm bio (if a key is
-  configured in Settings → Services), a "you might also like" row of similar-artist names,
-  and the artist's albums as a list. There's no Play/Shuffle here — playback starts from an
-  album's own Play/Shuffle buttons.
-- **Search** (`search_view`) — typing and pressing **Search** (or Enter) calls
-  `Message::SubmitSearch` → `commands::subsonic::search`, showing a min-rating filter row
-  (`rating_filter_row`), up to 40 matching albums, and up to 100 matching songs (`song_row`).
-- **Add to playlist** — the **+** icon on track/song rows (`Message::OpenAddToPlaylist`)
-  opens `add_to_playlist_overlay` (see [Playlists](/desktop-indepth-playlists)) to choose a
-  destination playlist.
-- **Download** — `track_row` (album/genre detail) and `song_row` (search results) show a
-  download icon (`Message::DownloadTrack`) next to the add-to-playlist icon; `album_detail_view`
-  has an album-level **Download** button (`Message::DownloadAlbum`). Both call
-  `commands::downloads::download_track`/`download_album` with the format from
-  `config.download_format`, saving into `~/Music/Firmium`.
+- **Albums** (`AlbumList.svelte`): `Api.albums()`, release-type filtered to full albums, with genre and decade filter chips derived from the loaded list.
+- **Album detail** (`AlbumDetail.svelte`): `Api.albumTracks(id)`; Play All / Shuffle go through `setQueueSeamless` / `shuffleAndPlay`; heart toggles `Api.setStarred(id, 'album', ...)`; Download calls `Api.downloadAlbum`. Tracks already in the offline library are marked via `Api.localAlbumTrackKeys`. A BPM chip row appears when tracks carry BPM.
+- **Artists** (`ArtistList.svelte`): `Api.artists()`; photos load lazily through the `use:artistPhoto` action, backed by `Core::artist_image` (session cache).
+- **Artist detail** (`ArtistDetail.svelte`): `Api.artistDetails`, bio and photo from `Api.artistInfo` (uses the stored Last.fm key when set), Play All Songs / Shuffle via `Core::play_artist` (walks every album), and "You might also like" from `Core::artist_recommendations` (server similar artists, Last.fm fallback, limited to artists in your library).
+- **Search** (`SearchView.svelte`): `Api.search(query)`; the min-rating chips filter by the higher of your rating and the server average.
+- **Favorites** (`FavoritesView.svelte`): `Api.starred()` (`getStarred2`): songs, albums, artists.
+- **Genre** (`GenreView.svelte`): `Api.songsByGenre(name)`; reached from the Home genre chips.
+- **Home** (`HomeView.svelte`): recently played albums/artists come from the local play history (`Api.recentPlays`), random picks from `Api.albumList('random', 12)`, genre chips from `Api.genres()`.
+- **Mix** (`MixView.svelte`): `Api.generateMix(energy, genre)` (`Core::generate_mix`).
 
-## Track ratings
+## Rows (`components/TrackRow.svelte`, `AlbumRow.svelte`)
 
-`track_row` and `song_row` render `star_rating`: 5 inline SVG stars
-(`icons::STAR_FILLED`/`STAR_EMPTY`), one `Message::SetRating(song_id, n)` button per star.
-The handler applies the new rating optimistically to any in-memory copy of that song (album
-detail, playlist detail, search results, similar-tracks results) before firing
-`commands::subsonic::set_rating` in the background. A separate `avg_rating_badge` shows the
-server's average rating (if any) next to the stars when nonzero.
+- Heart (`setStarred`), download (`downloadTrack`, uses the Download Format setting in Rust) and the **+** button, which opens the popup (`PlaylistMenu.svelte`, state in `lib/menu.ts`): Start Radio (`Api.startRadio`) and Add to playlist.
+- Star ratings: `Api.setRating`; the view applies the new rating to its in-memory list.
+- `data-source` routing is not in the UI: `Core` picks server or offline per call, so rows for `local:` ids simply hide server-only actions (`serverTrack` check).
 
 ## Multi-server
 
-`config.rs`'s `Config.accounts: Vec<SavedAccount>` records every server/username you've
-connected with; a new entry is appended on `Message::Connect`. Keyring credentials are
-parameterized by server: `save_password`/`get_password` (`backend/commands/credentials.rs`)
-take the server URL as the keyring `service`, so each server's password is stored separately.
-The connect form (`account_switcher_overlay`, opened via the sidebar's account icon) only
-exposes a single login form plus **Disconnect** when signed in — it doesn't yet render the
-saved-accounts list for one-click switching, even though the data is persisted.
+`config.toml` keeps `accounts` (server + username); passwords sit in the keyring keyed by server URL (`commands/credentials.rs`). `Core::switch_account` / `remove_account` implement switching; see [Sidebar & Navigation](/desktop-indepth-sidebar-nav).
 
-## Local library
+## Offline library
 
-`backend/commands/local_library.rs` can scan `~/Music/Firmium` and serve it as albums/artists
-(`get_local_albums`, `get_local_album_tracks`, `search_local`, …), and `App::local_view`
-renders that as an "Offline Library" screen. This is wired for `View::LocalAlbumDetail`
-(reachable by tapping a local album once the view is showing), but `View::Local` itself has
-no nav entry point in the current build — the sidebar's nav list (`Home`, `Albums`, `Artists`,
-`Playlists`, `Search`, `Mix`, `Settings`) doesn't include it.
+Logged out, every `Core` read falls back to `commands/local_library.rs`, which scans `~/Music/Firmium` (embedded art for `local:` cover ids). Dropping files on the window calls `Api.importLocalFiles`; Settings → Downloads has a file picker (`pick_and_import`).
 
 ## See also
 

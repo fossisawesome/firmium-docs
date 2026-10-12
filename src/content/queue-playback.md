@@ -16,7 +16,7 @@ Open the full-screen player by tapping the player bar. From there you can:
 
 - **Tap the cover art** to show the lyrics in place of the artwork; tap the **X** to return to the art.
 - **Long-press the cover art** to pop up the 1-5 star rating for the track.
-- **Tap the three-dot button** next to the progress bar to open a menu of actions: volume, add to playlist, visualizer, track info, view artist, add to queue, equalizer, and download.
+- **Tap the three-dot button** next to the progress bar to open a menu of actions: volume, add to playlist, track info, view artist, add to queue, equalizer, and download.
 
 ## Crossfade vs. gapless playback
 
@@ -50,20 +50,11 @@ If your server supports the OpenSubsonic `sonicSimilarity` extension (for exampl
 
 This feature only appears if your server advertises the extension; otherwise the button is hidden.
 
-## Visualizer (desktop)
-
-Click the waveform button in the player bar to open the visualizer panel. It reacts to whatever is currently playing, with two modes:
-
-- **Orb**: an NCS-style animated orb with pulsing rings, orbiting wisps, and a particle field. The colors are extracted from the current track's cover art. The orb reacts to bass in real time.
-- **Bars**: a classic frequency bar display.
-
-Switch between modes using the buttons at the top of the panel; your choice is remembered. The visualizer only analyzes audio while the panel is open, so it has no effect on playback or CPU usage when closed.
-
 ## Continue playback on another device
 
-If your server supports the OpenSubsonic Play Queue API, Firmium periodically saves your current queue, track, and playback position to the server. This happens when a track starts, when you pause, and roughly every 30 seconds while playing. Local-only tracks (downloaded files not on your server) aren't included in this sync.
+If your server supports the OpenSubsonic Play Queue API, Firmium periodically saves your current queue, track, and playback position to the server. This happens when a track starts or you pause, and roughly every 30 seconds while playing. Very long queues are trimmed to a window of up to 500 tracks around the current one on Android. Local-only tracks (downloaded files not on your server) aren't included in this sync.
 
-When you open Firmium on another device (or reconnect), it checks for a saved queue from elsewhere. If one is found, a banner appears asking "Resume queue from another device?" Choosing **Resume** loads the saved queue and seeks to the saved position. Choosing **Dismiss** ignores it.
+When you open Firmium on another device (or reconnect), it checks for a saved queue from elsewhere. If one is found, a banner appears asking "Resume queue from another device?" Choosing **Resume** loads the saved queue and seeks to the saved position. Choosing **Dismiss** ignores it. On Android the prompt is a dialog titled "Resume server queue?" with **Resume** and **Not now**. In Termium there is no prompt: press `r` to load the saved queue.
 
 ## Native-rate audio (desktop, Linux/Windows)
 

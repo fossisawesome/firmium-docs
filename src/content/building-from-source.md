@@ -1,15 +1,16 @@
 # Building from Source
 
-This page covers building Firmium yourself from the source code, for the desktop app (Linux, Windows, macOS, FreeBSD) and the Android app. If you're new to the codebase and want to understand how everything fits together first, see the [Architecture Overview](/architecture-overview).
+This page covers building Firmium yourself from the source code, for the desktop app (Linux, Windows, macOS) and the Android app. If you're new to the codebase and want to understand how everything fits together first, see the [Architecture Overview](/architecture-overview).
 
 ## Prerequisites
 
 - Rust 1.80 or later (`rustup default stable`)
-- On Linux: system dependencies for your distribution (see [Installing → System Dependencies](/installing#system-dependencies-linux)) — ALSA, GTK 3 (native file dialogs), libsecret (keyring), plus a Vulkan or OpenGL driver for the GPU-accelerated UI
+- Node.js 22 or later (with npm) for the Svelte frontend
+- On Linux: the `-dev` packages for WebKitGTK 4.1, ALSA, OpenSSL, libsecret, libxdo and librsvg, plus `pkg-config` (see [Installing → System Dependencies](/installing#system-dependencies-linux) for runtime names and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your distro)
+- On Windows: WebView2 (preinstalled on Windows 10/11)
 - On macOS: Xcode Command Line Tools (`xcode-select --install`) — no other system libraries needed
-- On FreeBSD: `pkg install alsa-lib dbus libxkbcommon` (credential storage uses the same D-Bus Secret Service mechanism as Linux) plus a Mesa/Vulkan driver
 
-The desktop app is a native [iced](https://iced.rs) (Rust) application — there is no Node.js / npm step anymore.
+The desktop app is a [Tauri 2](https://tauri.app) application: a Rust backend plus a Svelte 5 UI that only renders state.
 
 ## Steps
 
@@ -18,23 +19,26 @@ The desktop app is a native [iced](https://iced.rs) (Rust) application — there
 git clone https://github.com/fossisawesome/firmium.git
 cd firmium
 
-# Run the app (debug build)
-cargo run
+# Install frontend dependencies
+npm ci
+
+# Run the app (Vite dev server + debug build)
+npm run tauri:dev
 ```
 
-For an optimized release build:
+For an optimized release build with installers:
 
 ```bash
-cargo build --release
+npm run tauri:build
 ```
 
-This produces a single self-contained binary at `target/release/firmium`. Distribution packages are built from that binary (see Packaging below).
+This builds the frontend, compiles `target/release/firmium`, and writes installers (`.deb`/`.rpm` on Linux, NSIS on Windows, `.dmg` on macOS) to `target/release/bundle/`.
 
 ## Packaging
 
 ### Arch Linux (`PKGBUILD`)
 
-The root [`PKGBUILD`](https://github.com/fossisawesome/firmium/blob/main/PKGBUILD) builds from source with `cargo build --release`, then installs `target/release/firmium` to `/usr/bin/firmium` along with `packaging/firmium.desktop` and the app icons. Build with:
+The root [`PKGBUILD`](https://github.com/fossisawesome/firmium/blob/main/PKGBUILD) runs `npm ci && npm run build`, then `cargo build --release -p firmium --features custom-protocol` (the feature embeds `dist/`; without it the binary loads the dev server URL). It installs `target/release/firmium` to `/usr/bin/firmium` with `packaging/firmium.desktop` and the icons from `src-tauri/icons/`. Build with:
 
 ```bash
 makepkg -si
@@ -42,19 +46,15 @@ makepkg -si
 
 ### Fedora / RPM (`firmium.spec`)
 
-The [`firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/firmium.spec) (and [`packaging/firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/packaging/firmium.spec)) build from source with `cargo build --release` and install the resulting `firmium` binary, the desktop entry, and icons. This is the spec used for the Fedora COPR build.
+The [`firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/firmium.spec) builds the same way. [`packaging/firmium.spec`](https://github.com/fossisawesome/firmium/blob/main/packaging/firmium.spec) is the COPR variant: because COPR builds are offline, the `copr.yml` workflow vendors the crates and ships a prebuilt `dist/` in the vendor tarball.
 
-### macOS (`.app` / `.dmg`)
+### Release artifacts
 
-There's no formula or cask — the release workflow assembles a `Firmium.app` bundle by hand: the `cargo build --release` binary goes in `Contents/MacOS/firmium`, the icon at `assets/app-icons/icon.icns` goes in `Contents/Resources`, and [`packaging/macos/Info.plist`](https://github.com/fossisawesome/firmium/blob/main/packaging/macos/Info.plist) (with the version substituted in) goes in `Contents`. `hdiutil create` then wraps the `.app` plus an `/Applications` symlink into a `.dmg`. Builds are unsigned (no Apple Developer account yet), so notarization/codesigning isn't part of the pipeline.
-
-### FreeBSD (`.pkg`)
-
-The release workflow builds `cargo build --release` inside a FreeBSD VM (via `cross-platform-actions`, since GitHub Actions has no native FreeBSD runner), stages the binary plus `packaging/firmium.desktop` and icons, and runs `pkg create` to produce a `.pkg`. Install it with `pkg install ./firmium-*-freebsd.pkg`.
+`release.yml` calls the Tauri bundler on each OS: `.deb` and `.rpm` (Ubuntu 22.04), NSIS `.exe` (Windows), and one `.dmg` per architecture (`macos-14`, Apple Silicon and Intel). macOS builds are unsigned (no Apple Developer account yet), so there is no notarization step.
 
 ## Building for Android
 
-The Android app is a native Kotlin + Jetpack Compose app in [`android/`](https://github.com/fossisawesome/firmium/tree/main/android), built with Gradle independently of the desktop iced project. See [android/CLAUDE.md](https://github.com/fossisawesome/firmium/blob/main/android/CLAUDE.md) for its architecture.
+The Android app is a native Kotlin + Jetpack Compose app in [`android/`](https://github.com/fossisawesome/firmium/tree/main/android), built with Gradle independently of the desktop Tauri project. See [android/CLAUDE.md](https://github.com/fossisawesome/firmium/blob/main/android/CLAUDE.md) for its architecture.
 
 ### Additional Prerequisites
 
@@ -78,6 +78,8 @@ cd android
 ```
 
 The release APK is output to `android/app/build/outputs/apk/release/`.
+
+For an F-Droid style build without Google libraries (Wear OS sync is left out), add `-Pfoss`: `./gradlew assembleRelease -Pfoss`.
 
 To sign the release build, set these environment variables before running `assembleRelease`:
 

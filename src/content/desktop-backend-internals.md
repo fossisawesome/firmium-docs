@@ -1,22 +1,21 @@
 # Desktop Backend Internals
 
-This page covers the internal structure of the Firmium desktop app: how backend modules are wired at the crate root, how the `EventBus`/`BackendEvent` model works, how `AppState` is shared, and how `iced::Task::perform` drives every backend call from the UI. For a higher-level map of the whole app, see [Desktop Architecture](/architecture-overview).
+This page covers the internal structure of the Firmium backend: how the crate is wired, how the `EventBus`/`BackendEvent` model works, how `AppState` and `Core` are shared, and how the Tauri command layer reaches them. For a higher-level map, see [Desktop Architecture](/architecture-overview).
 
 ## Crate structure and module mounting
 
-The desktop app is a single Rust crate. The iced UI lives under `src/`; the backend lives under `backend/`, a sibling directory to `src/`. Because they share one crate, `src/main.rs` mounts every backend module at the crate root with `#[path]` attributes:
+The backend is the lib crate `firmium-backend` (`backend/`), used by the Tauri shell (`src-tauri/`) and by [Termium](/termium-architecture). Its files live next to `backend/src/lib.rs`, which mounts them with `#[path]` attributes so code inside can use short `crate::` paths:
 
 ```rust
-#[path = "../backend/events.rs"]    mod events;
-#[path = "../backend/state.rs"]     mod state;
-#[path = "../backend/audio/mod.rs"] mod audio;
-#[path = "../backend/commands/mod.rs"] mod commands;
-// ... repeated for init, queue_state, queue_manager, visualizer, etc.
+#[path = "../events.rs"]    pub mod events;
+#[path = "../state.rs"]     pub mod state;
+#[path = "../audio/mod.rs"] pub mod audio;
+#[path = "../commands/mod.rs"] pub mod commands;
+#[path = "../core/mod.rs"]  pub mod core;
+// ... init, queue_state, queue_manager, db, podcasts, ipc, config, paths
 ```
 
-Code inside `backend/` can reference `crate::events::EventBus`, `crate::commands::subsonic::get_albums`, and so on without any re-export indirection. `src/app.rs` uses the same `crate::` paths. The full mounting order is in `src/main.rs`.
-
-`main()` creates a Tokio runtime, enters it, then calls `iced::application(boot, App::update, App::view)`. The `boot` function calls `Backend::new()` and returns the initial `App` state plus an auto-login task.
+`src-tauri/src/lib.rs` builds `Core::new()` in Tauri's `setup` hook while *entered* in the async runtime (`tauri::async_runtime::handle().inner().enter()`), not inside `block_on`: `AudioPlayer` builds a `reqwest::blocking::Client`, which panics if created from within an async context.
 
 ## Backend bootstrap (`backend/init.rs`)
 
@@ -30,7 +29,7 @@ Code inside `backend/` can reference `crate::events::EventBus`, `crate::commands
 6. Calls `queue_manager::start(...)` to launch the background task that reacts to playback events.
 7. Calls `ipc::start(...)` to launch the CLI control socket listener.
 
-The resulting `Backend` struct is stored on the `App` struct in `src/app.rs` and accessed by `update()` when dispatching backend calls.
+`Core::new()` (`backend/core/mod.rs`) wraps the resulting `Backend`, loads `Config` and the local playlists, restores persisted playback settings, and starts the auto-continue task. The shell keeps it as `Arc<Core>` in Tauri state.
 
 ## Event bus (`backend/events.rs`)
 
@@ -41,11 +40,11 @@ The resulting `Backend` struct is stored on the `App` struct in `src/app.rs` and
 - `PlaybackStateChanged { player_id, state, audio_info }`: playback transitioned state; `audio_info` carries the native sample rate and channel count when state is `Playing`.
 - `PlaybackPosition { player_id, position, duration }`: fired roughly every 250 ms by the decode feeder; drives the scrubber in the player bar.
 - `PlaybackFinished { player_id }`: the decode feeder exhausted the stream; triggers track advance in the queue manager.
-- `QueueStateChanged(QueueStateSnapshot)`: the queue was mutated (new track, reorder, clear); the UI subscription updates the queue panel.
+- `QueueStateChanged(QueueStateSnapshot)`: the queue was mutated (new track, reorder, clear); the shell forwards it to the UI.
 - `QueueExhausted(Song)`: the queue ran out; the seed song is forwarded for Smart Radio continuation.
-- `SessionExpired`: emitted by `commands/subsonic.rs` on HTTP 401 or OpenSubsonic error codes 40 or 41; the UI subscription routes it to the login overlay.
+- `SessionExpired`: emitted by `commands/subsonic.rs` on HTTP 401 or OpenSubsonic error codes 40 or 41; the shell emits `session-expired` and the UI opens the login modal.
 
-Two consumers subscribe to the bus at startup: `queue_manager::start` (gapless preload, crossfade, scrobbling) and `App::subscription` in `src/app.rs` (bridges events into `Message::Backend(BackendEvent)` for the iced update loop).
+Consumers subscribe at startup: `queue_manager::start` (gapless preload, crossfade, scrobbling), `Core::start_auto_continue` (Smart Radio seeding, podcast resume position) and `src-tauri/src/events.rs` (re-emits events to the webview).
 
 ## Connection state (`backend/state.rs`)
 
@@ -55,44 +54,44 @@ Two consumers subscribe to the bus at startup: `queue_manager::start` (gapless p
 - `http: reqwest::Client`: shared async HTTP client used by `commands/subsonic.rs` and `commands/lyrics.rs`. Separate from `AudioPlayer`'s `reqwest::blocking::Client`, which is dedicated to the decode-feeder thread.
 - `local_library: RwLock<Option<LocalLibraryCache>>`: cached scan of `~/Music/Firmium`; `None` until first scan; invalidated after downloads or imports.
 - `bus: EventBus`: handle for emitting `SessionExpired` from within the OpenSubsonic client.
+- `external_streams: RwLock<HashMap<String, String>>`: direct stream URLs for non-library items (podcast episodes, keyed `podcast:<id>`); `queue::stream_url_for` checks it before the server.
 
 `AppState::new(bus)` is the only constructor. The `Arc<AppState>` is cloned into every backend command that needs server access.
 
-## Calling backend functions from the UI (`src/app.rs`)
+## Calling the backend from the UI
 
-All UI state lives on `App`. `update(message) -> Task<Message>` handles every message variant.
+`src-tauri/src/commands.rs` holds one `#[tauri::command]` per UI action. Each takes `State<Arc<Core>>`, forwards to `Core` or a `backend::commands` function, and maps errors to `CmdError { kind, message }` (from `UserError` or `String`). Async commands that borrow `State` must return `Result`. Every command is registered in `generate_handler!` in `src-tauri/src/lib.rs`, and the UI wraps it in `src/lib/api.ts`.
 
-For async backend calls, `update` returns `iced::Task::perform(future, Message::SomeDone)`:
+Async fns in `backend/commands/` take owned `Arc<_>` handles so their futures are `'static`; sync fns take `&_`.
 
-```rust
-Task::perform(
-    commands::subsonic::get_albums(Arc::clone(&self.backend.app_state), offset),
-    Message::AlbumsFetched,
-)
-```
+## `Core` (`backend/core/`)
 
-The future runs on the Tokio runtime. When it completes, `Message::AlbumsFetched(result)` re-enters `update`. Async fns in `backend/commands/` take owned `Arc<_>` handles so the future is `'static`; sync fns take `&_` and are called inline in `update`.
+App logic that is not tied to a UI toolkit:
 
-`App::subscription` returns an `iced::Subscription` that reads from an `EventBus` receiver and maps each `BackendEvent` to `Message::Backend(BackendEvent)`, feeding audio and queue state into the update loop.
+- `settings.rs`: `Settings` snapshot, `set_setting(key, value)` (applies side effects, enforces crossfade/gapless/strict rules, persists), `reset_settings`, `apply_persisted_playback`.
+- `accounts.rs`: `connect`, `auto_login`, `switch_account`, `logout`, `remove_account`, `auth_state`; passwords go through `commands/credentials.rs`.
+- `library.rs`: server/offline routing (`albums`, `artists`, `search`, `album_list`, ...), `lyrics` (`TimedLyrics` with per-word timing), `cover_path`, `generate_mix`, `start_radio`, `seed_from`, `start_auto_continue`, artist helpers, podcast operations.
+- `playlists.rs`: local-first playlists and server sync, see [Playlists](/desktop-indepth-playlists).
+- `stats.rs`: `history_summary`, `recent_plays`, `export_history`.
 
 ## Commands (`backend/commands/`)
 
-`backend/commands/mod.rs` declares each submodule. These are plain Rust functions with no Tauri attribute macros and no IPC serialization layer:
+`backend/commands/mod.rs` declares each submodule. These are plain Rust functions with no Tauri attribute macros; `Core` and the shell's `commands.rs` call them:
 
 - `auth.rs`: `generate_auth_params(username, password)` for MD5 token generation (random 8-byte salt, `token = md5(password + salt)`).
 - `credentials.rs`: `save_password`, `get_password`, `delete_password` via the `keyring` crate (libsecret on Linux, Windows Credential Manager on Windows).
 - `subsonic.rs`: `set_connection`, `validate_connection`, OpenSubsonic reads (albums, artists, search, genres, playlists), `scrobble`, `save_play_queue`/`get_play_queue`, `get_song_lyrics` (structured then legacy then LRCLIB cascade), `get_sonic_similar_tracks`. The internal `subsonic_request` emits `BackendEvent::SessionExpired` on 401 or error codes 40 and 41.
 - `mappers.rs`: `map_albums`, `map_artists`, `map_songs` convert `serde_json::Value` to typed `Album`/`Artist`/`Song` structs; `infer_release_type` and `format_track_info` run here to keep JSON-shape logic out of the UI.
 - `lyrics.rs`: `parse_lrc`, `fetch_lrclib_lyrics` for LRC line parsing and the LRCLIB HTTP fallback used by `get_song_lyrics`.
-- `cover_cache.rs`: `get_cover_art`, `clear_cover_cache` managing a disk cache under `app_cache_dir()/covers/` (200 MB budget, mtime-based LRU eviction). The UI loads cached paths into an `iced::widget::image::Handle`.
-- `cover_colors.rs`: `extract_cover_colors`, `extract_cover_colors_from_path` for dominant-color extraction (used as the visualizer palette).
+- `cover_cache.rs`: `get_cover_art`, `clear_cover_cache` managing a disk cache under `app_cache_dir()/covers/` (200 MB budget, mtime-based LRU eviction). The UI shows cached paths via `convertFileSrc`.
+- `cover_colors.rs`: `extract_cover_colors`, `extract_cover_colors_from_path` for dominant-color extraction (used to tint the lyrics panel).
 - `queue.rs`: queue mutation functions (`set_queue`, `shuffle_and_play`, `play_queue_index`, and others).
 - `queue_manager.rs` (mounted as a peer module, not under `commands/`): the background task that drains the bus for crossfade timing, gapless preload, track advance, and scrobbling.
-- `playback.rs`: thin wrappers over `AudioPlayer`: `play_stream`, `preload_stream`, pause/resume/stop, `seek_position`, `set_volume`, `crossfade_to`, `list_audio_devices`.
 - `equalizer.rs`: `get_eq_state`, `save_eq_profile`, `delete_eq_profile`, `set_eq_active_profile`, `set_eq_bands`, `set_eq_enabled`. Profiles persist in `eq.toml` under the app config directory.
-- `local_library.rs`: scans `~/Music/Firmium`, maps audio files to the same `Album`/`Artist`/`Song` shapes as `mappers.rs`. `import_local_files` handles drag-and-drop. `find_local_match` is used by `playback.rs` to prefer a local copy over a server stream.
+- `local_library.rs`: scans `~/Music/Firmium`, maps audio files to the same `Album`/`Artist`/`Song` shapes as `mappers.rs`. `import_local_files` handles drag-and-drop. `find_local_match` is used by `queue.rs` to prefer a local copy over a server stream.
 - `downloads.rs`: `download_track`, `download_album` pull streams from the server into the local library folder.
-- `stats.rs`: play-history aggregation for the Recap view and CSV export.
+- `stats.rs`: thin wrappers over `PlayHistory` and file-save helpers.
+- `playlists.rs`: best-effort server push primitives used by `core/playlists.rs`.
 - `app_info.rs`: `get_app_version`.
 - `listenbrainz.rs`: ListenBrainz scrobbling.
 - `themes.rs`: `list_themes` reads `.toml` theme files from the config directory.
@@ -110,7 +109,6 @@ The audio engine uses `symphonia` 0.5 for decoding and `cpal` 0.17 for device I/
 - `http_client: reqwest::blocking::Client`: dedicated blocking client for decode-feeder threads.
 - `bus: EventBus`: for emitting `PlaybackStateChanged`, `PlaybackPosition`, and `PlaybackFinished`.
 - `crossfade_in_progress: AtomicBool`: stream reopens are deferred while a crossfade volume ramp is running.
-- `visualizer: Arc<VisualizerState>`: shared with the decode feeder and the iced canvas in `src/viz.rs`.
 - `bit_perfect_mode: Mutex<String>`: `"off"`, `"relaxed"`, or `"strict"`; controls whether the output is reopened at each track's native sample rate.
 - `eq: Arc<EqShared>`: live-updatable EQ band config shared with every decode feeder.
 
@@ -136,55 +134,14 @@ Wraps a `symphonia` `FormatReader` and `Decoder`. Exposes `next_samples() -> Vec
 
 1. Applies the ReplayGain multiplier.
 2. Applies the EQ chain (`EqChain::process_interleaved`), skipped entirely when bit-perfect mode is `"strict"`.
-3. Taps the visualizer (`visualizer::process_chunk`).
-4. Applies the 25 ms fade-in ramp.
-5. Pushes samples into `session.ring`.
+3. Applies the 25 ms fade-in ramp.
+4. Pushes samples into `session.ring`.
 
 The feeder checks `EqShared.generation` (an `AtomicU64`) each chunk; it rebuilds its `EqChain` only when the generation changes, so live EQ edits are cheap (one atomic read per chunk in the steady state).
 
 ### Mixing callback (`audio/output.rs`)
 
 `mix_into` runs in the cpal realtime callback. For each active session it reads from `session.ring`, applies per-session volume, adapts channel count (mono-to-stereo or stereo-to-mono), and runs linear-interpolation resampling if the session's native rate does not match the currently open stream's rate. When rates match, the resampler step is exactly 1.0 and degenerates to a passthrough with no interpolation overhead.
-
-## Visualizer
-
-FFT analysis lives in the backend (`backend/visualizer.rs`); rendering is a GPU `wgpu` shader pipeline under `src/viz/` — an `iced::widget::shader::Program`, not a CPU `canvas::Program`. Three modes exist: **Bars**, **Lines**, **Scope** (`VizMode` in `src/viz/mod.rs`; there is no "orb" mode).
-
-### FFT analysis (`backend/visualizer.rs`)
-
-`VisualizerState` is shared between the decode feeder and a background analysis task, and read each frame by `src/viz/state.rs::VizState`.
-
-- `enabled: AtomicBool`: gates both the sample tap and the analysis task.
-- `buffer: Mutex<VecDeque<f32>>`: mono ring buffer, capacity 8192 samples, fed by `process_chunk(samples, channels, sample_rate, state)` (called inline from the decode feeder — downmixes interleaved samples to mono and pushes them in).
-- `smooth_bars`, `smooth_bass`, `smooth_mid`, `smooth_treble` and corresponding `last_*` snapshots, plus `dirty: AtomicBool` (set after each analysis pass, cleared once `VizState` consumes it).
-
-A background task (`spawn_analysis_task`, `ANALYSIS_INTERVAL` = 16 ms) runs while `enabled`:
-
-1. Takes the most recent `FFT_SIZE = 2048` samples from `buffer`, applies a Hann window, runs a forward FFT via `rustfft::FftPlanner`.
-2. `band_energy()` computes `raw_bass` (40-250 Hz), `raw_mid` (250-4000 Hz), `raw_treble` (4000-18000 Hz) as peak magnitude per band, normalized.
-3. `compute_bars()` groups the spectrum into `BAR_COUNT = 120` log-spaced bins (40 Hz to 18 kHz, peak magnitude per bin), normalized to 0..1.
-4. Optional per-bar smoothing, mutually exclusive, set via `VisualizerState::set_monstercat`/`set_waves`:
-   - **Monstercat**: `monstercat_filter()` spreads each bar's energy to its neighbors exponentially (`bars[m] = max(bars[m], bar_value / (intensity*1.5)^distance)`), then a light `waves_smooth(bars, 2)` pass smooths the seams. Intensity below `MONSTERCAT_MIN_EFFECTIVE = 0.7` is treated as disabled.
-   - **Waves**: `waves_smooth(bars, step)` picks sparse control points every `step` bars and reconstructs a smooth curve across all 120 bars with a Catmull-Rom spline (`catmull_rom_1d`).
-5. Asymmetric one-pole smoothing (attack α=0.6, release α=0.15 — fast rise, slow decay) applied to bass/mid/treble and every bar against the previous frame.
-6. `wave_out`: the raw time-domain buffer downsampled to `WAVE_POINTS = 120` (chronological order), used as the Scope's oscilloscope trace.
-
-Results land in `last_bars`/`last_wave`/`last_bass`/`last_mid`/`last_treble`; `dirty` is set.
-
-### GPU rendering (`src/viz/`)
-
-- **`mod.rs`**: `VizMode` enum (`Bars`/`Lines`/`Scope`), re-exports `VizConfig` (from `config.rs`) and `Visualizer` (alias for `ShaderVisualizer` in `shader.rs`).
-- **`config.rs`**: `VizConfig` — all user-tunable knobs (~60 fields): shared (gradient/peak colors, border, peak hold/fade, bar depth, global opacity), Bars-only (`bars_*`: gradient mode/orientation, peak mode, LED segments, trails, echo), Lines-only (`lines_*`: point count, outline, glow, mirror, style, trails, echo), Scope-only (`scope_*`: radius, sensitivity, particles, beam mode, trails, echo), and global post-processing (`bloom_enabled`, `bloom_intensity`, `beat_reactivity`, `crt`).
-- **`state.rs`**: `VizState` (backend handle + peak-hold/flash/beat-pulse tracking + `ParticleSystem`). `tick()` runs once per frame: beat detection (bass envelope vs. a slow running max), per-bar flash-onset decay, peak-hold physics (gravity fall + fade), and drives particle simulation. `trail_draining()` reports whether trails/echo are still fading out after audio stops, so the widget keeps repainting until they're done.
-- **`shader.rs`**: the `iced::widget::shader::Program` impl. `VisualizerConfig`/`Uniforms` are `#[repr(C, align(16))]` `Pod` structs packed once per frame in `VisualizerPrimitive::new()` — mode-specific point counts are independently resampled (linear interpolation) from the backend's fixed 120-length arrays; Scope reuses Lines' outline/gradient/glow/style uniform slots since only one of the two ever renders per frame. Bloom auto-enables from either the global bloom setting or Lines/Scope's `glow_intensity` (glow reuses the bloom pipeline at a lower threshold and more blur iterations for a tighter glow look).
-- **`pipeline.rs`**: `VisualizerPipeline` (the `shader::Pipeline` impl), built once per `wgpu` device. Loads `bars.wgsl`/`lines.wgsl`/`scope.wgsl`/`particles.wgsl`/`bloom.wgsl`/`echo.wgsl`/`crt.wgsl` (`include_str!`) and builds MSAA + non-MSAA render pipeline variants per mode. All scene geometry is vertex-pulled from storage buffers (no vertex buffers).
-- **`particles.rs`**: CPU particle simulation for Scope's drifting spark/dust field. `ParticleSystem` pre-warms a pool with a deterministic `XorShift32` PRNG; particles either respawn as ambient dust or as sparks launched off the waveform's loudest points, driven by a curl-noise flow field for organic swirl, and recycle once past a panel bound. `update()` runs once per frame from `VizState::tick`; `gpu_data()` packs two `vec4`s per particle for `particles.wgsl`.
-
-**Post-processing pipeline** (`shader.rs::render()`, skipped via a cheap fast path when no effect is active): scene render into an MSAA texture (resolved to `resolve_texture`) → optional ring-only re-render (echo's clean source, no particles) → bloom (ping-pong bright-pass + separable blur, `bloom.wgsl`) → motion trails (fade + max-composite into a `Rgba16Float` trail texture) → echo/Milkdrop feedback (zoom/rotate the previous frame, blend with the fresh ring, `echo.wgsl`) → blit to the framebuffer (through `crt.wgsl` if CRT is enabled) → particles redrawn crisp on top (so echo warp never smears them) → bloom composite (additive) on top of everything.
-
-### Settings → `VizConfig` (`src/app/viz_colors.rs`)
-
-`App::viz_config()` rebuilds a `VizConfig` every frame the Visualizer panel is open (struct-update off `VizConfig::default()`), called from `panels.rs::viz_panel()` when constructing `iced::widget::shader(Visualizer::new(...))`. Gradient colors come from either the extracted cover-art palette (`commands::cover_colors::extract_cover_colors`, refetched by `App::maybe_fetch_viz_colors()` when the track changes and "match cover" is on) or the active theme's accent ramp. All Bars/Lines/Scope Settings fields map directly to their `VizConfig` counterparts; Monstercat/Waves smoothing settings configure the backend FFT (`VisualizerState::set_monstercat`/`set_waves`) rather than `VizConfig` — a separate path from the render config. A few fields (border/peak color, peak alpha, bloom, CRT, beat reactivity) have no Settings UI yet and stay at their `Default` values. App-level `bars_*`/`lines_*`/`scope_*` fields persist to `~/.config/<id>/config.toml`.
 
 ## Equalizer DSP (`backend/audio/eq.rs`, `backend/commands/equalizer.rs`)
 
@@ -201,9 +158,13 @@ The EQ is a biquad IIR chain using RBJ Audio EQ Cookbook coefficients. `Biquad` 
 
 A running instance listens for line-based commands on a Unix domain socket (`$XDG_RUNTIME_DIR/firmium.sock`, falling back to the app cache dir) on Linux/macOS, or a named pipe (`\\.\pipe\firmium-com.fossisawesome.firmium`) on Windows. `Backend::new()` spawns the listener via `ipc::start()`, holding clones of the same `Arc<QueueState>`, `Arc<AppState>`, `Arc<AudioPlayer>`, and `EventBus` handles the UI uses.
 
-Each connection is one command: the client writes a line, the server calls the matching `commands::queue::*` fn directly (bypassing `Message`/`Task::perform` entirely, since those fns only take backend `Arc` handles), writes one reply line, and closes. Commands: `play-pause`, `next`, `prev`, `volume <0-100>`, `seek <secs>`, `queue-index <n>`, `shuffle-toggle`, `repeat-cycle`, `status` (replies with a JSON snapshot built from `QueueState` + `AudioPlayer::get_state`/`get_current_position`/`get_duration`).
+Each connection is one command: the client writes a line, the server calls the matching `commands::queue::*` fn directly (without going through the UI, since those fns only take backend `Arc` handles), writes one reply line, and closes. Commands: `play-pause`, `next`, `prev`, `volume <0-100>`, `seek <secs>`, `queue-index <n>`, `shuffle-toggle`, `repeat-cycle`, `status` (replies with a JSON snapshot built from `QueueState` + `AudioPlayer::get_state`/`get_current_position`/`get_duration`).
 
-`src/main.rs` implements the client side: if `firmium` is invoked with args, `run_cli()` connects synchronously (`std::os::unix::net::UnixStream` / a `File` opened on the pipe path — no Tokio runtime needed for a one-shot call), sends the joined args as one line, prints the reply, and exits before any GUI code runs.
+`src-tauri/src/main.rs` and `cli.rs` implement the client side: if `firmium` is invoked with args, `cli::run()` connects synchronously (`std::os::unix::net::UnixStream` / a `File` opened on the pipe path — no Tokio runtime needed for a one-shot call), sends the joined args as one line, prints the reply, and exits before the GUI starts.
+
+## OS media controls (`src-tauri/src/media_controls.rs`)
+
+`media_controls::start()` runs from the Tauri `setup` hook, after `Core::new()`. It builds a `souvlaki::MediaControls` (MPRIS over D-Bus on Linux, SMTC on Windows using the main window's HWND, `MPNowPlayingInfoCenter` on macOS) and does two things. Inbound, the `attach` callback turns each `MediaControlEvent` into the same `commands::queue::*` call the control socket uses (`toggle_play`, `queue_next`, `queue_prev`, `seek_queue`); a mirrored `AtomicBool` makes `Play` and `Pause` idempotent, since the backend only has a toggle. Outbound, a task subscribed to the `EventBus` calls `set_metadata` on `QueueStateChanged` and `set_playback` on `PlaybackStateChanged`, using the last `PlaybackPosition` as progress. Position ticks are not pushed individually, to avoid a D-Bus signal every tick. If the platform backend cannot start, it logs and the app runs without OS controls.
 
 ## See also
 

@@ -118,15 +118,12 @@ Routes:
   the change, and re-saves it as JSON - there's no per-playlist storage, the whole list is
   read/written atomically on every change. `addTracks` de-duplicates by song id.
 - **Play history (Room)** (`data/db/`): a Room database (`firmium_play_history.db`) records
-  one row per completed track for the Stats Export panel and Firmium Recap. `PlayEntity` is
-  the `plays` table (track/artist/album ids **and** names denormalized so Recap renders
+  one row per completed track for the Stats Export panel. `PlayEntity` is
+  the `plays` table (track/artist/album ids **and** names denormalized so exports work
   offline, plus genre/bpm/timestamp/duration); `PlayDao` does all aggregation in SQL;
-  `PlayHistoryRepository` assembles the `RecapStats`/`PlayHistorySummary` UI models and builds
+  `PlayHistoryRepository` assembles the `PlayHistorySummary` UI model and builds
   CSV/JSON exports. Rows are inserted by `PlaybackController` at the same completion points
-  that scrobble. Accessed app-wide via `FirmiumApplication.playHistory`. Recap UI is
-  `ui/screens/RecapScreen.kt` (route `recap`, a `HorizontalPager`); card images are captured
-  with a Compose `GraphicsLayer` and shared through `FileProvider` (`ui/ShareUtils.kt`). The
-  weekly auto-show uses `AppPreferences.recapLastShown` (`recap_last_shown`).
+  that scrobble. Accessed app-wide via `FirmiumApplication.playHistory`. Exports are shared through `FileProvider` (`ui/ShareUtils.kt`).
 - **`LocalLibraryRepository`** (`data/local/`): scans `Music/Firmium` via MediaStore
   (falling back to direct file listing on API <29) and maps results into `Album`/
   `Artist`/`Song`, with `local:<id>` ids. `invalidate()` clears its cache, forcing a
@@ -142,6 +139,10 @@ Routes:
   and publishes progress via the `downloadAllState` `StateFlow` observed by the Settings screen.
   `allowRedownload` lets server-mode downloads overwrite an existing local copy; `invalidateAfter`
   is set false during bulk downloads so the library is rescanned once at the end.
+
+## F-Droid build (`-Pfoss`)
+
+The Wear OS sync classes (`WearStateSync`, `WearAuthSync`, `WearSettingsSync`, `WearRemoteService`) depend on the closed-source Google Wearable Data Layer, which F-Droid does not accept. `app/build.gradle.kts` reads a `foss` Gradle property: without it, `src/play/java` is added to the `main` source set and `play-services-wearable` is a dependency; with it, `src/foss/java` supplies no-op stubs with the same public API and the dependency is dropped. Build it with `./gradlew :app:assembleRelease -Pfoss`. Store listing text lives in `fastlane/metadata/android/en-US/`. Nothing else differs, so the `AndroidManifest.xml` service entry stays and simply resolves to the stub.
 
 ## See also
 

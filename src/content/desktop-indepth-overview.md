@@ -1,35 +1,29 @@
 # Desktop In-depth: How It Works
 
-A look at the data and playback flow behind the desktop UI. For the high-level picture
-first, see [Desktop Architecture](/architecture-overview).
+The data and playback flow behind the desktop UI. For the layout of the codebase, see [Desktop Architecture](/architecture-overview).
 
-## Data and playback flow
+## Request path
 
-The desktop app is a single native [iced](https://iced.rs) (Rust) binary — no web view, no
-JavaScript. `src/app.rs` holds all UI state on the `App` struct, a `Message` enum for every
-user action and async result, `App::update` (handles each `Message`), and `App::view`
-(re-rendered after every message). There's no separate store layer: `App` is the single
-source of truth.
+1. A Svelte view or component calls a wrapper in `src/lib/api.ts`, e.g. `Api.albums()` → `invoke('get_albums')`.
+2. `src-tauri/src/commands.rs` receives it with `State<Arc<Core>>` and forwards to `Core::albums()` (`backend/core/library.rs`).
+3. `Core` checks `auth_state().authed`: logged in goes to `backend/commands/subsonic.rs`, otherwise to `backend/commands/local_library.rs`. Both return the same structs from `commands/mappers.rs`.
+4. Errors reject the promise as `{ kind, message }` (`CmdError`). `toastError()` in `stores.ts` shows them and ignores `SessionExpired`.
 
-`App::update` reacts to navigation (`Message::Navigate(View)`) by checking saved credentials
-in the OS keyring and, when authenticated, returning an `iced::Task::perform` that calls into
-`backend/commands/subsonic.rs` to fetch albums, artists, playlists, or search results from
-your Navidrome/OpenSubsonic server. Results come back as another `Message` (e.g.
-`Message::AlbumsLoaded`) and get stored directly on `App`; cover art goes through a disk cache
-(`backend/commands/cover_cache.rs`) into an `iced::widget::image::Handle` cached on `App`.
+## Playback
 
-When you press play, the relevant `Message` (`PlaySong`, `PlayAlbumAt`, `Next`, `Prev`, …) is
-handled in `App::update` by calling into `backend/commands/queue.rs`, which:
+Pressing play calls a queue command (`set_queue`, `set_queue_seamless`, `play_queue_index`, ...) in `backend/commands/queue.rs`, which:
 
-- Calls `backend/commands/playback.rs::play_stream` to start streaming the track through the
-  audio engine (`backend/audio/`: `symphonia` decode + `cpal` output).
-- The audio engine pushes `PlaybackStateChanged`/`PlaybackPosition` events onto the in-process
-  `EventBus` (`backend/events.rs`, a `tokio::sync::broadcast` channel); the UI's
-  `App::subscription` bridges that into `Message::Backend(BackendEvent)`, which updates
-  `App`'s position/duration fields directly — no polling.
-- The background `queue_manager` task (started by `Backend::new()` in `backend/init.rs`) watches
-  for a track nearing its end and, depending on the Crossfade/Gapless settings, calls
-  `AudioPlayer::crossfade_to()` or `preload_stream()`/`play_stream()` for the next track.
+- resolves the stream URL, preferring a local file match, then `AppState.external_streams` (podcasts), then the Subsonic stream;
+- calls `AudioPlayer::play_stream` (`backend/audio/`: `symphonia` decode + `cpal` output);
+- emits `QueueStateChanged` on the `EventBus`.
+
+`src-tauri/src/events.rs` re-emits bus events as Tauri events. `initBackend()` in `src/lib/stores.ts` listens and fills `queueState`, `playbackState`, `position` and `duration`; events are matched against `queueState.playerId` so stale sessions are ignored. No polling.
+
+The `queue_manager` task (started by `Backend::new()`) watches `PlaybackPosition`: near the end of a track it preloads the next one (gapless) or calls `AudioPlayer::crossfade_to()`, depending on the settings in `QueueState`.
+
+## Settings flow
+
+Preferences live in `config.toml` and the OS keyring (Last.fm / ListenBrainz secrets). `Core::set_setting(key, value)` (`backend/core/settings.rs`) applies the side effect (queue state, audio engine, keyring), persists, and returns the full `Settings`. `updateSetting()` in `stores.ts` stores the result, and `applyAppearance()` writes theme, font and scrollbar width to `:root`.
 
 ## See also
 

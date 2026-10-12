@@ -1,6 +1,6 @@
 # Settings
 
-The Settings view is split into a few groups: Appearance, Playback, Visualizer (desktop only), Equalizer, Downloads, Stats Export, Services, Account, and Debug.
+The Settings view is split into a few groups: Appearance, Playback, Equalizer, Downloads, Stats Export, Services, Account, and Debug.
 
 ## Appearance
 
@@ -20,43 +20,13 @@ Choose the interface layout, independent of your color theme — pick any color 
 
 ### Font
 
-Choose the interface font from a curated list: Inter, Liberation Mono, Monospace, System, Iced, Comic Sans, Sans Serif, BigBlue Terminal, Cousine, FiraCode, and Hack.
+Choose the interface font from a curated list: Inter, Liberation Mono, Monospace, System, Comic Sans, Sans Serif, BigBlue Terminal, Cousine, FiraCode, and Hack.
 
-On desktop, the new font applies the next time you launch Firmium. On Android, it applies immediately.
+The new font applies immediately.
 
-### Visualizer
+### Scrollbar Width (desktop)
 
-Turn on an audio-reactive visualizer for the now playing screen. It's off by default. When enabled, pick a style: **Bars** (a frequency-bar spectrum), **Orb** (a glowing audio-reactive orb), or **Oscilloscope** (the waveform wrapped into a circle). On both desktop and mobile you can tap the visualizer to cycle styles, and the toggle in the now playing screen switches between the album art and the visualizer.
-
-On desktop, **Cover-Colored Visualizer** (in Settings, on by default) tints the visualizer with the colors of the current album's artwork. Turn it off to have the visualizer follow your chosen theme's colors instead. On mobile the visualizer always follows the album artwork.
-
-Desktop has a dedicated **Visualizer** settings group (see below) with deep per-style customization; mobile only has the on/off toggle, style picker, and cover-coloring described above.
-
-## Visualizer
-
-Desktop-only. A full customization page for the Bars, Lines, and Scope styles, split into three sections. Every control updates the visualizer live and is remembered between launches.
-
-### Bars
-
-- **Waves Smoothing** and **Monstercat Smoothing** are two alternate ways of rounding off jittery bar peaks — turning one on turns the other off. Waves uses a spline curve across the bars (**Waves Intensity** controls how many bars it samples before smoothing); Monstercat spreads each bar's energy into its neighbors with an exponential falloff (lower **Monstercat Smoothing** values spread wider and smoother, higher values stay sharp and narrow).
-- **Max Bar Count**, **Border Width**, **LED Mode** (and its **LED Segment Height**) control the bars' shape and layout.
-- **Gradient Mode**, **Gradient Orientation**, **Peak Gradient Mode**, and **Peak Mode** control how colors and the peak-hold indicators behave, alongside **Peak Hold Time**, **Peak Fade Time**, and **Peak Height**.
-- **Isometric Depth** adds a 3D extruded look to the bars.
-- **Peak Flash**, **Motion Trails**, and **Echo** are beat-reactive effects — flash blooms the bars toward the peak color on a hit, trails leave a fading after-image, and echo is a Milkdrop-style spiraling feedback loop.
-
-### Lines
-
-- **Point Count** and **Line Thickness** control the waveform's resolution and stroke weight.
-- **Outline Thickness**/**Outline Opacity**, **Fill Opacity**, and **Glow Intensity** layer extra rendering on top of the line.
-- **Gradient Mode** and **Animation Speed** control how colors move across the line; **Line Style** switches between a smooth curve and straight angular segments.
-- **Mirror** makes the line symmetric from the center. **Motion Trails** and **Echo** work the same as in Bars.
-
-### Scope
-
-- **Ring Size** and **Sensitivity** control how large the circular waveform is and how hard it reacts to loud audio.
-- **Point Count**, **Line Thickness**, **Fill Opacity**, **Glow Intensity**, **Outline Thickness**/**Outline Opacity**, **Gradient Mode**, **Animation Speed**, and **Line Style** mirror the equivalent Lines controls, applied to the ring instead.
-- **Particles** (with **Particle Count** and **Particle Speed**) adds a field of glowing dust drifting out from the ring. **Beam Glow** renders the ring with additive blending for a brighter, more luminous look.
-- **Motion Trails** and **Echo** work the same as in Bars and Lines.
+Set how thick the list scrollbars are (6-20 px).
 
 ## Playback
 
@@ -143,10 +113,9 @@ rest of the app; tracks already downloaded are skipped.
 
 ## Stats Export
 
-Firmium keeps a private play history on your device — every track you finish is recorded locally, with no server involved. This section turns that history into something you can look at and share. On desktop these controls appear under the **Account** category. See [Recap & Listening Stats](/recap).
+Firmium keeps a private play history on your device — every track you finish is recorded locally, with no server involved. This section turns that history into something you can look at and share. On desktop these controls appear under the **Account** category.
 
 - **Listening Summary** — a quick line showing your total plays, total listening time, and how many distinct tracks and artists you've heard.
-- **Firmium Recap** — opens the full Recap: a set of full-screen, swipeable cards covering your top tracks, artists, albums, genre, listening times, biggest discovery, and streak.
 - **Export Play History** — saves your full local history. On desktop you pick **CSV** or **JSON** and choose where to save the file; on Android the same choice opens the system share sheet. CSV opens in any spreadsheet; JSON keeps the raw structure.
 
 ## Services

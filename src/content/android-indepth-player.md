@@ -31,7 +31,7 @@ does.
 - **Drag handle** — drag down to dismiss the full screen player back to the player bar.
 - **Seek bar** — shows and controls playback position.
 - **More button** — the three-dot button beside the time row opens `PlayerMoreSheet.kt`, a
-  grid of tiles: volume slider, add to playlist (`AddToPlaylistDialog.kt`), visualizer toggle,
+  grid of tiles: volume slider, add to playlist (`AddToPlaylistDialog.kt`),
   track info (expands `AudioStats`), view artist, add to queue, equalizer, and download.
 - **Previous / Play-Pause / Next** — standard transport controls.
 - **Shuffle** — toggles shuffle mode for the queue.

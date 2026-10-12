@@ -16,7 +16,7 @@ Firmium is developed by an individual maintainer, not a registered company. This
 ## What's stored locally
 
 - Library metadata (from your local files or media server)
-- Playback queue, history, and listening stats (powers Recap)
+- Playback queue, history, and listening stats
 - Playlists
 - Settings and themes
 - Cached cover art and lyrics

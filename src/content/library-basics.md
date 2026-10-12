@@ -33,6 +33,10 @@ Your full album library. Tap an album to see its tracklist, artwork, and other d
 
 The album list shows filter chips for **decade** and **genre** at the top. Tap one or more chips to narrow the list. Multiple selections within a category act as OR (any match); selections across categories act as AND. Tap a highlighted chip to deselect it, or tap **Clear filters** to reset.
 
+### Sorting
+
+Choose **A–Z** or **Recently added** with the chips at the top of the list. Recently added shows the newest 500 albums on your server, newest first, and ignores the usual grouping by type.
+
 ### Track ratings
 
 Tracks can be rated 1-5 stars. On desktop, hover over a track row to reveal the stars; tap a star to set the rating. On Android, stars show on the now-playing screen (long-press the cover art) and in search results. Tapping the current rating clears it. Ratings sync to your server.

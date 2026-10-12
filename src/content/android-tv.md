@@ -23,10 +23,8 @@ control instead of a touchscreen. This is an Android feature; the desktop app is
 - **Smart Mix** — pick an energy level (and optionally a genre) to start a mood-based mix.
 - **Equalizer** — turn it on, pick a saved profile, and adjust the 10 graphic bands with your
   remote's left/right buttons. Creating new profiles is graphic-mode only on TV.
-- **Recap & listening stats** — top tracks, artists, and albums, day-of-week breakdown, and
-  streaks, over a range you choose (7 days up to all time).
 - **Settings** — theme and font, crossfade (with duration and curve), gapless playback,
-  ReplayGain, visualizer, and account logout.
+  ReplayGain, and account logout.
 
 Navigate everything with your remote's directional pad and select button.
 

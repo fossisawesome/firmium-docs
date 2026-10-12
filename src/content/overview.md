@@ -1,6 +1,6 @@
 # Overview
 
-Firmium is a music player for your own music library. It connects to a [Navidrome](https://www.navidrome.org/) server (or any other server that speaks the OpenSubsonic API) and gives you a clean, fast interface for browsing and playing your music on Linux desktop and Android.
+Firmium is a music player for your own music library. Point it at a folder of local files, connect it to a [Navidrome](https://www.navidrome.org/) server (or any other server that speaks the OpenSubsonic API), or use both - either way you get a clean, fast interface for browsing and playing your music on Linux desktop and Android.
 
 ## What Firmium does
 
@@ -12,7 +12,6 @@ Firmium is a music player for your own music library. It connects to a [Navidrom
 
 ## Where to start
 
-- New to Firmium? Start with [Installation](/installing) and then [Connecting to Navidrome](/connecting-to-navidrome).
-- Already set up? Check out [Library Basics](/library-basics) to learn your way around.
+- New to Firmium? Start with [Installation](/installing), then check out [Library Basics](/library-basics) - it covers using a local music folder, connecting to Navidrome, or both.
 - Want to change how it looks? See [Customizing Themes](/custom-themes).
 - Curious how the app is built, or want to contribute code? Head to the [Developer](/architecture-overview) section.

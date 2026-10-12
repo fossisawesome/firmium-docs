@@ -1,6 +1,6 @@
 # Installing
 
-Firmium is available for **Linux desktop, macOS, FreeBSD** and **Android**.
+Firmium is available for **Linux desktop, macOS** and **Android**.
 
 > **Compatibility (Linux):** Tested on Hyprland (Wayland). Other desktop environments should work but are not officially tested. X11 is untested.
 
@@ -23,7 +23,7 @@ Or transfer the APK to your device and open it with a file manager. You may need
 
 ## macOS
 
-Download the `.dmg` matching your Mac from the [releases page](https://github.com/fossisawesome/firmium/releases/latest) — `firmium-*-Intel.dmg` for Intel Macs, `firmium-*-AppleSilicon.dmg` for Apple Silicon (M1/M2/M3/M4). Open the `.dmg` and drag **Firmium** into **Applications**.
+Download the `.dmg` matching your Mac from the [releases page](https://github.com/fossisawesome/firmium/releases/latest) — `Firmium_*_x64.dmg` for Intel Macs, `Firmium_*_aarch64.dmg` for Apple Silicon (M1/M2/M3/M4). Open the `.dmg` and drag **Firmium** into **Applications**.
 
 No extra system libraries are needed — audio (CoreAudio) and credential storage (Keychain) are built into macOS.
 
@@ -34,32 +34,25 @@ Before running Firmium, install the required system libraries for your distribut
 **Debian / Ubuntu**
 
 ```bash
-sudo apt update && sudo apt install -y libasound2 libssl3 libsecret-1-0 libxkbcommon0
+sudo apt update && sudo apt install -y libwebkit2gtk-4.1-0 libasound2 libssl3 libsecret-1-0 libxdo3
 ```
 
 **Fedora**
 
 ```bash
-sudo dnf install -y alsa-lib openssl-libs libsecret libxkbcommon
+sudo dnf install -y webkit2gtk4.1 alsa-lib openssl-libs libsecret libxdo
 ```
 
 **Arch Linux**
 
 ```bash
-sudo pacman -S --needed alsa-lib openssl libsecret libxkbcommon
-```
-
-**FreeBSD**
-
-```bash
-pkg install -y alsa-lib dbus libxkbcommon
+sudo pacman -S --needed webkit2gtk-4.1 alsa-lib openssl libsecret xdotool
 ```
 
 Firmium also requires:
 
 - A **Secret Service provider** (GNOME Keyring or KWallet) for credential storage. This is included in most desktop environments. Without it, passwords won't be saved and you'll need to log in every launch.
 - **PipeWire or PulseAudio**. On modern distros, ALSA routes through one of these. Run `aplay -l` to verify audio devices are visible.
-- A **Vulkan or OpenGL driver** for iced's `wgpu` renderer. Most distros ship one with GPU drivers already.
 
 ## Installing the App (Linux)
 
@@ -82,15 +75,7 @@ sudo dnf install firmium
 
 ```bash
 # Download the .deb from the releases page, then:
-sudo dpkg -i ./firmium_*.deb
-```
-
-## Installing the App (FreeBSD)
-
-Download the `.pkg` from the [releases page](https://github.com/fossisawesome/firmium/releases/latest), then:
-
-```bash
-sudo pkg install ./firmium-*-freebsd.pkg
+sudo apt install ./Firmium_*.deb
 ```
 
 ## Next Steps

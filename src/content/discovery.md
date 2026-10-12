@@ -18,6 +18,10 @@ Open **Mix** from the sidebar (desktop) or the bottom navigation (Android) to bu
 2. Optionally narrow it to a single genre.
 3. Start the mix. Firmium gathers matching songs from your library, shuffles them, and starts playing.
 
+## Shuffle All
+
+Want music without choosing anything? Tap **Shuffle all** on the Home screen. Firmium picks a random sample of up to 500 songs from your whole library and starts playing. Unlike Mix, it does not filter by tempo, so songs without BPM tags are included.
+
 ## Start Radio
 
 Want a station built around one thing? Use **Start Radio**:
